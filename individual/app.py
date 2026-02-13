@@ -16,7 +16,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), override=True)
 
 st.set_page_config(
     page_title="Stock Analysis Pipeline",
@@ -32,8 +32,9 @@ GEMINI_MODEL = "gemini-3-pro-preview"
 
 # Base paths derived from this file's location
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SECTOR_DIR = os.path.join(BASE_DIR, "Sector")
-INDIVIDUAL_STOCKS_DIR = os.path.join(BASE_DIR, "Individual_Stocks")
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+SECTOR_DIR = os.path.join(PROJECT_ROOT, "Sector")
+INDIVIDUAL_STOCKS_DIR = os.path.join(PROJECT_ROOT, "Individual_Stocks")
 os.makedirs(INDIVIDUAL_STOCKS_DIR, exist_ok=True)
 
 MODEL_OPTIONS = ["gemini", "openai", "gpt4o"]

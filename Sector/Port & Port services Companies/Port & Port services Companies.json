@@ -1,0 +1,92 @@
+[
+  {
+    "company": "Adani Ports & Special Economic Zone Ltd",
+    "sector": "Port & Infrastructure",
+    "score": 84,
+    "key_metrics": {
+      "Operating Profit Margin (OPM)": "59% (TTM)",
+      "Net Debt-to-Equity": "0.85",
+      "Interest Coverage Ratio": "5.74x",
+      "Cash Flow to PAT Ratio": "1.55x",
+      "Sales Growth (5 Yr CAGR)": "21%",
+      "ROCE": "13.8%",
+      "Fixed Asset Turnover": "0.37x"
+    },
+    "explanation": "Adani Ports scores an 84 due to its strong operational efficiency, significant growth potential, and robust cash flow generation, which are offset by valuation concerns and accounting risks. As India's largest port operator, it boasts high profit margins and a solid debt profile, but caution is warranted regarding its high valuation and interest capitalization practices."
+  },
+  {
+    "company": "Allcargo Terminals Ltd",
+    "sector": "Port & Port Services",
+    "score": 55,
+    "key_metrics": {
+      "Operating Profit Margin": "20%",
+      "Debt-to-Equity Ratio": "2.09x",
+      "Interest Coverage Ratio": "2.85x",
+      "ROCE": "11.6%",
+      "Contingent Liabilities": "₹687 Cr",
+      "Sales Growth (QoQ)": "+5.3%",
+      "Price/Earnings": "19.9x"
+    },
+    "explanation": "Allcargo Terminals Ltd showcases a strong competitive position with revenue growth and margin expansion. However, significant financial risks such as high debt levels and contingent liabilities limit the overall financial attractiveness. The balance sheet's fragility amid operational success suggests a moderate financial attractiveness score. Suitable for investors with high risk tolerance due to its balance sheet issues."
+  },
+  {
+    "company": "Gujarat Pipavav Port Ltd",
+    "sector": "Port & Infrastructure",
+    "score": 79,
+    "key_metrics": {
+      "OPM %": "59%",
+      "ROCE": "24.9%",
+      "Debt to Equity": "~0.02",
+      "Dividend Yield": "4.63%",
+      "Sales Growth (5yr)": "6%",
+      "Debtor Days": "17.6",
+      "Concession End": "Sep 2028"
+    },
+    "explanation": "Gujarat Pipavav Port Ltd scores highly due to its strong financial health, exceptional profitability margins, and attractive dividend yield, making it a reliable income-generating investment in the port sector. However, its low top-line growth and the concession agreement expiration in 2028 introduce significant risks that constrain its overall score and growth potential."
+  },
+  {
+    "company": "JSW Infrastructure Ltd",
+    "sector": "Port & Port Services",
+    "score": 82,
+    "key_metrics": {
+      "Operating Profit Margin (OPM)": "52%",
+      "Sales Growth (5-Year CAGR)": "31%",
+      "Debt-to-Equity Ratio": "0.59x",
+      "Interest Coverage Ratio": "5.92x",
+      "ROCE": "13.9%",
+      "Cash Flow from Operations (CFO)": "₹ 1,803 Cr",
+      "Price-to-Earnings (P/E)": "33.4x"
+    },
+    "explanation": "JSW Infrastructure Ltd is a high-growth infrastructure asset with exceptional operating margins and a strengthening balance sheet. It scores well on Growth Quality and Profitability with a low Debt-to-Equity ratio, strong sales growth, and high OPM. However, a high P/E ratio implies market expectation for significant future growth. Risks include high promoter holding exceeding regulatory limits and potential accounting concerns with interest cost capitalization."
+  },
+  {
+    "company": "Starlog Enterprises Ltd",
+    "sector": "Port Services & Heavy Equipment Rental",
+    "score": 14,
+    "key_metrics": {
+      "Asset Turnover Ratio": "0.35x",
+      "Debtor Days": "832 Days",
+      "Operating Margin (OPM)": "-53.35%",
+      "Contingent Liabilities": "₹190 Cr",
+      "Sales Growth (5-Year)": "-40.9%",
+      "ROCE": "-2.00%",
+      "Promoter Holding Trend": "-12.9% (3 Yrs)"
+    },
+    "explanation": "Starlog Enterprises Ltd is in severe financial distress with collapsing revenue, massive inefficiencies in working capital, and significant contingent liabilities. The company has drastically reduced its asset base, impacting its ability to generate revenue. While it has reduced borrowings to near zero, this is overshadowed by high debtor days and potential liabilities. The negative operating margin and sales decline indicate an unsustainable business model, and the drop in promoter holding reflects reduced confidence."
+  },
+  {
+    "company": "VMS Industries Ltd",
+    "sector": "Port & Ship Breaking",
+    "score": 41,
+    "key_metrics": {
+      "Price to Book (P/B)": "0.69x",
+      "Promoter Holding Trend": "-18.5% (3Y)",
+      "Inventory Days": "61 Days",
+      "Operating Profit Margin": "4% (TTM)",
+      "Debt to Equity": "0.26",
+      "Interest Coverage": "~2.0x",
+      "Sales Growth (TTM)": "-51%"
+    },
+    "explanation": "VMS Industries scores 41/100 due to governance issues, high operational volatility, and reliance on non-core earnings. Despite being undervalued, significant promoter stake reduction and negative cash flows present high risks. Suitable only for deep-value investors eyeing asset liquidation or a steel sector turnaround."
+  }
+]
