@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en" x-data="app()" x-init="init()" :class="{ 'dark': darkMode }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analysis Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        excellent: '#2d6a4f', good: '#52b788',
+                        average: '#f4a261', weak: '#e76f51',
+                        gold: '#e9c46a', grey: '#adb5bd',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .skeleton { background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        .dark .skeleton { background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%); background-size: 200% 100%; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        table { border-collapse: collapse; width: 100%; }
+        th { position: sticky; top: 0; z-index: 10; }
+        .table-container { max-height: 600px; overflow-y: auto; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-200">
+
+<!-- Top Navigation Bar -->
+<nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
+    <div class="max-w-full mx-auto px-4">
+        <div class="flex items-center justify-between h-14">
+            <div class="flex items-center gap-2">
+                <h1 class="text-xl font-bold text-excellent dark:text-good">Stock Analysis Hub</h1>
+            </div>
+            <div class="flex items-center gap-1">
+                <button @click="activeModule = 'dashboard'" :class="activeModule === 'dashboard' ? 'bg-excellent text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    Dashboard
+                </button>
+                <button @click="activeModule = 'sector'" :class="activeModule === 'sector' ? 'bg-excellent text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    Sector Screener
+                </button>
+                <button @click="activeModule = 'individual'" :class="activeModule === 'individual' ? 'bg-excellent text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    Individual Stocks
+                </button>
+                <button @click="activeModule = 'sectorPipeline'" :class="activeModule === 'sectorPipeline' ? 'bg-excellent text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    Sector Pipeline
+                </button>
+                <button @click="activeModule = 'individualPipeline'" :class="activeModule === 'individualPipeline' ? 'bg-excellent text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    Individual Pipeline
+                </button>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- Global Search -->
+                <div class="relative" x-data="{ searchOpen: false, searchQuery: '', searchResults: null }">
+                    <input type="text" x-model="searchQuery" @input.debounce.300ms="searchGlobal(searchQuery).then(r => searchResults = r)" @focus="searchOpen = true" @click.away="searchOpen = false" placeholder="Search companies..." class="w-48 px-3 py-1.5 text-sm border rounded-md bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-excellent">
+                    <div x-show="searchOpen && searchResults && (searchResults.sector_results.length || searchResults.individual_results.length)" x-cloak class="absolute right-0 mt-1 w-80 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg shadow-xl max-h-80 overflow-y-auto z-50">
+                        <template x-if="searchResults.sector_results.length">
+                            <div>
+                                <div class="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700">Sector Results</div>
+                                <template x-for="r in searchResults.sector_results.slice(0, 8)" :key="r.company + r.Sector">
+                                    <div class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm border-b dark:border-gray-700" @click="showCrossRef(r.company); searchOpen = false">
+                                        <span x-text="r.company" class="font-medium"></span>
+                                        <span x-text="'(' + r.Sector + ') - Score: ' + r.score" class="text-gray-500 dark:text-gray-400 text-xs ml-1"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="searchResults.individual_results.length">
+                            <div>
+                                <div class="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700">Individual Results</div>
+                                <template x-for="r in searchResults.individual_results.slice(0, 8)" :key="r.Company">
+                                    <div class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm border-b dark:border-gray-700" @click="showCrossRef(r.Company); searchOpen = false">
+                                        <span x-text="r.Company" class="font-medium"></span>
+                                        <span x-text="'Combined: ' + (r['Combined Score'] || 'N/A')" class="text-gray-500 dark:text-gray-400 text-xs ml-1"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <!-- Export All -->
+                <a href="/api/export-all" class="text-sm px-2 py-1 rounded border dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Export All Data as ZIP">ZIP</a>
+                <!-- Dark/Light Toggle -->
+                <button @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)" class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :title="darkMode ? 'Light Mode' : 'Dark Mode'">
+                    <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    <svg x-show="darkMode" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-64 min-h-screen bg-white dark:bg-gray-800 shadow-md p-4 flex-shrink-0" :class="sidebarOpen ? '' : 'hidden'" x-show="sidebarOpen">
+        <button @click="sidebarOpen = false" class="mb-3 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Collapse &laquo;</button>
+
+        <!-- Sector Sidebar -->
+        <div x-show="activeModule === 'sector'" x-cloak>
+            <h3 class="font-semibold mb-2 text-sm">Sector Filters</h3>
+            <div class="mb-3">
+                <label class="flex items-center gap-2 text-sm mb-1">
+                    <input type="checkbox" x-model="sectorSelectAll" @change="toggleAllSectors()"> Select All Sectors
+                </label>
+                <div class="max-h-48 overflow-y-auto border dark:border-gray-600 rounded p-2 text-xs space-y-1">
+                    <template x-for="s in sectorList" :key="s">
+                        <label class="flex items-center gap-1.5">
+                            <input type="checkbox" :value="s" x-model="selectedSectors"> <span x-text="s"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="text-xs font-medium">Show Top N Sectors</label>
+                <input type="range" x-model.number="sectorTopN" min="1" :max="Math.max(sectorList.length, 1)" class="w-full">
+                <span class="text-xs" x-text="sectorTopN"></span>
+            </div>
+            <button @click="refreshSectorData()" class="w-full px-3 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800 transition-colors">Refresh Data</button>
+        </div>
+
+        <!-- Individual Sidebar -->
+        <div x-show="activeModule === 'individual'" x-cloak>
+            <h3 class="font-semibold mb-2 text-sm">Individual Filters</h3>
+            <div class="mb-3">
+                <label class="text-xs font-medium">Score Type</label>
+                <div class="space-y-1 mt-1">
+                    <template x-for="st in ['Combined Score', 'Financial Score', 'Concall Score']" :key="st">
+                        <label class="flex items-center gap-1.5 text-sm">
+                            <input type="radio" name="scoreType" :value="st" x-model="indScoreType"> <span x-text="st"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="text-xs font-medium">Score Range</label>
+                <div class="flex gap-2 mt-1">
+                    <input type="number" x-model.number="indMinScore" min="0" max="100" class="w-16 px-1 py-0.5 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                    <span class="text-sm">to</span>
+                    <input type="number" x-model.number="indMaxScore" min="0" max="100" class="w-16 px-1 py-0.5 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="text-xs font-medium">Show Top N</label>
+                <input type="range" x-model.number="indTopN" min="1" max="50" class="w-full">
+                <span class="text-xs" x-text="indTopN"></span>
+            </div>
+            <button @click="refreshIndividualData()" class="w-full px-3 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800 transition-colors">Refresh Data</button>
+        </div>
+
+        <!-- Dashboard Sidebar -->
+        <div x-show="activeModule === 'dashboard'" x-cloak>
+            <h3 class="font-semibold mb-2 text-sm">Dashboard</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">Combined overview of all data.</p>
+            <div class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                <p>Sectors: <span x-text="sectorList.length" class="font-medium text-gray-700 dark:text-gray-300"></span></p>
+                <p>Individual Stocks: <span x-text="indAllData.length" class="font-medium text-gray-700 dark:text-gray-300"></span></p>
+            </div>
+        </div>
+
+        <!-- Sector Pipeline Sidebar -->
+        <div x-show="activeModule === 'sectorPipeline'" x-cloak>
+            <h3 class="font-semibold mb-2 text-sm">Sector Pipeline</h3>
+            <div class="mb-3">
+                <label class="text-xs font-medium">Screener.in Sector URL</label>
+                <input type="text" x-model="sp_url" placeholder="https://www.screener.in/market/..." class="w-full mt-1 px-2 py-1.5 text-xs border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+            </div>
+            <div class="mb-2">
+                <label class="text-xs font-medium">Extraction Model</label>
+                <select x-model="sp_modelScreener" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                    <option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="text-xs font-medium">Scoring Model</label>
+                <select x-model="sp_modelScore" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                    <option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <h4 class="text-xs font-medium mb-1">API Status</h4>
+                <template x-for="(info, name) in sp_apiStatus" :key="name">
+                    <div class="flex items-center gap-1 text-xs mb-0.5">
+                        <span class="w-2 h-2 rounded-full" :class="info.ok ? 'bg-green-500' : 'bg-red-500'"></span>
+                        <span x-text="name"></span>
+                    </div>
+                </template>
+                <button @click="checkApiStatus()" class="text-xs text-excellent hover:underline mt-1">Refresh Status</button>
+            </div>
+            <div class="flex gap-2">
+                <button @click="startSectorPipeline()" :disabled="sp_running" class="flex-1 px-2 py-1.5 bg-excellent text-white text-xs rounded hover:bg-green-800 disabled:opacity-50">Run</button>
+                <button @click="cancelPipeline(sp_runId)" :disabled="!sp_running" class="flex-1 px-2 py-1.5 bg-weak text-white text-xs rounded hover:bg-red-800 disabled:opacity-50">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Individual Pipeline Sidebar -->
+        <div x-show="activeModule === 'individualPipeline'" x-cloak>
+            <h3 class="font-semibold mb-2 text-sm">Individual Pipeline</h3>
+            <div class="mb-3">
+                <label class="text-xs font-medium">Screener.in Company URL</label>
+                <input type="text" x-model="ip_url" placeholder="https://www.screener.in/company/..." class="w-full mt-1 px-2 py-1.5 text-xs border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+            </div>
+            <div class="mb-2">
+                <label class="flex items-center gap-2 text-xs">
+                    <input type="checkbox" x-model="ip_stepByStep"> Step-by-step mode
+                </label>
+            </div>
+            <div class="mb-3 space-y-1">
+                <template x-for="(label, idx) in ['Step 1: Extraction', 'Step 2: JSON', 'Step 3: KPIs', 'Step 4: KPI Values', 'Step 5: Analysis', 'Step 6: Walk Talk', 'Step 7: Concall']" :key="idx">
+                    <div>
+                        <label class="text-xs" x-text="label"></label>
+                        <select x-model="ip_models['step' + (idx+1)]" class="w-full px-2 py-0.5 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                            <option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                        </select>
+                    </div>
+                </template>
+            </div>
+            <template x-if="!ip_stepByStep">
+                <div class="flex gap-2">
+                    <button @click="startIndividualPipeline()" :disabled="ip_running" class="flex-1 px-2 py-1.5 bg-excellent text-white text-xs rounded hover:bg-green-800 disabled:opacity-50">Run Full</button>
+                    <button @click="cancelPipeline(ip_runId)" :disabled="!ip_running" class="flex-1 px-2 py-1.5 bg-weak text-white text-xs rounded hover:bg-red-800 disabled:opacity-50">Cancel</button>
+                </div>
+            </template>
+        </div>
+
+        <div class="mt-4 pt-3 border-t dark:border-gray-600 text-xs text-gray-400">
+            <p>Keyboard: 1=Dash, 2=Sector, 3=Individual, 4=S.Pipe, 5=I.Pipe</p>
+        </div>
+    </aside>
+
+    <button x-show="!sidebarOpen" @click="sidebarOpen = true" class="fixed left-0 top-20 bg-white dark:bg-gray-800 shadow p-1.5 rounded-r-md z-40 text-sm" x-cloak>&raquo;</button>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 min-w-0">
+
+        <!-- Cross-Reference Modal -->
+        <div x-show="crossRefModal" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="crossRefModal = false">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold" x-text="crossRefData?.company || ''"></h3>
+                    <button @click="crossRefModal = false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+                </div>
+                <template x-if="crossRefData?.sector_data">
+                    <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h4 class="font-semibold text-sm mb-2 text-excellent">Sector Data</h4>
+                        <p class="text-sm">Sector: <span x-text="crossRefData.sector_data.Sector" class="font-medium"></span></p>
+                        <p class="text-sm">Score: <span x-text="crossRefData.sector_data.score" class="font-bold" :style="'color:' + getScoreColor(crossRefData.sector_data.score)"></span></p>
+                    </div>
+                </template>
+                <template x-if="crossRefData?.individual_data">
+                    <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h4 class="font-semibold text-sm mb-2 text-good">Individual Analysis</h4>
+                        <p class="text-sm">Financial Score: <span x-text="crossRefData.individual_data['Financial Score'] || 'N/A'" class="font-bold"></span></p>
+                        <p class="text-sm">Concall Score: <span x-text="crossRefData.individual_data['Concall Score'] || 'N/A'" class="font-bold"></span></p>
+                        <p class="text-sm">Combined Score: <span x-text="crossRefData.individual_data['Combined Score'] || 'N/A'" class="font-bold"></span></p>
+                        <p class="text-sm">Signal: <span x-text="crossRefData.individual_data['Signal'] || 'N/A'" class="font-medium"></span></p>
+                    </div>
+                </template>
+                <template x-if="!crossRefData?.sector_data && !crossRefData?.individual_data">
+                    <p class="text-gray-500 text-sm">No cross-reference data found for this company.</p>
+                </template>
+            </div>
+        </div>
+
+        <!-- ==================== DASHBOARD ==================== -->
+        <div x-show="activeModule === 'dashboard'">
+            <h2 class="text-2xl font-bold mb-4">Dashboard</h2>
+
+            <!-- Loading skeleton -->
+            <template x-if="loading.dashboard">
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <template x-for="i in 4"><div class="skeleton h-20 rounded-lg"></div></template>
+                </div>
+            </template>
+
+            <template x-if="!loading.dashboard">
+                <div>
+                    <!-- Cross-module KPIs -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Total Sectors</p>
+                            <p class="text-3xl font-bold text-excellent" x-text="sectorList.length"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Sector Companies</p>
+                            <p class="text-3xl font-bold text-good" x-text="sectorAllData.length"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Individual Stocks</p>
+                            <p class="text-3xl font-bold text-average" x-text="indAllData.length"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Highest Score</p>
+                            <p class="text-3xl font-bold text-excellent" x-text="dashboardHighestScore"></p>
+                        </div>
+                    </div>
+
+                    <!-- Top 5 tables side by side -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <h3 class="font-semibold mb-3">Top 5 Sector Performers</h3>
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2 text-left">Company</th><th class="px-3 py-2 text-left">Sector</th><th class="px-3 py-2 text-right">Score</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in sectorAllData.slice(0, 5)" :key="i">
+                                        <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" @click="showCrossRef(r.company)">
+                                            <td class="px-3 py-2" x-text="r.company"></td>
+                                            <td class="px-3 py-2 text-xs text-gray-500" x-text="r.Sector"></td>
+                                            <td class="px-3 py-2 text-right font-bold" :style="'color:' + getScoreColor(r.score)" x-text="r.score"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <a @click="activeModule = 'sector'" class="text-xs text-excellent cursor-pointer hover:underline mt-2 inline-block">View all sector data &rarr;</a>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <h3 class="font-semibold mb-3">Top 5 Individual Performers</h3>
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2 text-left">Company</th><th class="px-3 py-2 text-right">Combined</th><th class="px-3 py-2 text-left">Signal</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in indTopPerformers" :key="i">
+                                        <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" @click="showCrossRef(r.Company)">
+                                            <td class="px-3 py-2" x-text="r.Company"></td>
+                                            <td class="px-3 py-2 text-right font-bold" :style="'color:' + getScoreColor(r['Combined Score'])" x-text="r['Combined Score'] || 'N/A'"></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs font-medium" :style="'background-color:' + getSignalColor(r.Signal) + '; color:' + getSignalTextColor(r.Signal)" x-text="r.Signal"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <a @click="activeModule = 'individual'" class="text-xs text-excellent cursor-pointer hover:underline mt-2 inline-block">View all individual data &rarr;</a>
+                        </div>
+                    </div>
+
+                    <!-- Trend Placeholder -->
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow text-center">
+                        <h3 class="font-semibold mb-2">Score Trends</h3>
+                        <div class="py-12 text-gray-400 dark:text-gray-500">
+                            <svg class="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                            <p class="text-sm">Score history tracking coming soon</p>
+                            <p class="text-xs mt-1">Scores will be timestamped in future runs</p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ==================== SECTOR SCREENER ==================== -->
+        <div x-show="activeModule === 'sector'" x-cloak>
+            <h2 class="text-2xl font-bold mb-4">Sector Screener</h2>
+
+            <!-- Error state -->
+            <template x-if="errors.sector">
+                <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                    <p class="text-red-700 dark:text-red-300 text-sm" x-text="errors.sector"></p>
+                    <p class="text-red-500 dark:text-red-400 text-xs mt-1">Ensure the Sector directory exists at the configured path and contains CSV files. Set STOCK_HUB_ROOT environment variable to override.</p>
+                </div>
+            </template>
+
+            <!-- Loading skeleton -->
+            <template x-if="loading.sector">
+                <div>
+                    <div class="grid grid-cols-4 gap-4 mb-6"><template x-for="i in 4"><div class="skeleton h-20 rounded-lg"></div></template></div>
+                    <div class="skeleton h-64 rounded-lg"></div>
+                </div>
+            </template>
+
+            <template x-if="!loading.sector && !errors.sector">
+                <div>
+                    <!-- KPI Row -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Sectors</p>
+                            <p class="text-3xl font-bold" x-text="sectorFilteredSummary.length"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Companies</p>
+                            <p class="text-3xl font-bold" x-text="sectorFilteredData.length"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Avg Score</p>
+                            <p class="text-3xl font-bold" x-text="sectorAvgScore"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Top Score</p>
+                            <p class="text-3xl font-bold text-excellent" x-text="sectorTopScore"></p>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="border-b dark:border-gray-700 mb-4">
+                        <div class="flex gap-1">
+                            <template x-for="tab in ['Overview', 'Sector Analysis', 'Company Leaderboard', 'Raw Data']" :key="tab">
+                                <button @click="sectorTab = tab" :class="sectorTab === tab ? 'border-b-2 border-excellent text-excellent font-medium' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="px-4 py-2 text-sm transition-colors" x-text="tab"></button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div x-show="sectorTab === 'Overview'">
+                        <h3 class="font-semibold mb-3" x-text="'Top ' + sectorTopN + ' Sectors'"></h3>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2.5 text-left">Sector</th><th class="px-4 py-2.5 text-right">Avg Score</th><th class="px-4 py-2.5 text-right">Top Score</th><th class="px-4 py-2.5 text-right">Companies</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in sectorFilteredSummary" :key="i">
+                                        <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                            <td class="px-4 py-2" x-text="r.Sector"></td>
+                                            <td class="px-4 py-2 text-right" x-text="r.avg_score"></td>
+                                            <td class="px-4 py-2 text-right font-bold"><span class="px-2 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r.top_score)" x-text="r.top_score"></span></td>
+                                            <td class="px-4 py-2 text-right" x-text="r.company_count"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sector Analysis Tab -->
+                    <div x-show="sectorTab === 'Sector Analysis'" x-cloak>
+                        <div class="flex flex-wrap gap-4 items-end mb-4">
+                            <div>
+                                <label class="text-xs font-medium">Select Sector</label>
+                                <select x-model="sectorDrillSector" @change="loadSectorDetail()" class="block mt-1 px-3 py-1.5 text-sm border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                                    <template x-for="s in selectedSectors" :key="s"><option :value="s" x-text="s"></option></template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium">Min Score</label>
+                                <input type="number" x-model.number="sectorDrillMin" min="0" max="100" class="block mt-1 w-20 px-2 py-1.5 text-sm border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium">Max Score</label>
+                                <input type="number" x-model.number="sectorDrillMax" min="0" max="100" class="block mt-1 w-20 px-2 py-1.5 text-sm border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                            </div>
+                            <button @click="loadSectorDetail()" class="px-4 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800">Filter</button>
+                        </div>
+
+                        <template x-if="sectorDetailData.length">
+                            <div>
+                                <!-- KPI row for sector -->
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Companies</p>
+                                        <p class="text-2xl font-bold" x-text="sectorDetailData.length"></p>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Avg Score</p>
+                                        <p class="text-2xl font-bold" x-text="(sectorDetailData.reduce((a,b) => a + b.score, 0) / sectorDetailData.length).toFixed(1)"></p>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Top Score</p>
+                                        <p class="text-2xl font-bold text-excellent" x-text="Math.max(...sectorDetailData.map(d => d.score))"></p>
+                                    </div>
+                                </div>
+
+                                <!-- Table -->
+                                <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow mb-4">
+                                    <table class="text-sm">
+                                        <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2.5 text-left">Company</th><th class="px-4 py-2.5 text-right">Score</th></tr></thead>
+                                        <tbody>
+                                            <template x-for="(r, i) in sectorDetailData" :key="i">
+                                                <tr class="border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''" @click="showCrossRef(r.company)">
+                                                    <td class="px-4 py-2" x-text="r.company"></td>
+                                                    <td class="px-4 py-2 text-right"><span class="px-2 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r.score)" x-text="r.score"></span></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Charts -->
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div id="sectorBarChart" class="bg-white dark:bg-gray-800 rounded-lg shadow p-2"></div>
+                                    <div id="sectorPieChart" class="bg-white dark:bg-gray-800 rounded-lg shadow p-2"></div>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="!sectorDetailData.length">
+                            <p class="text-gray-500 text-sm">Select a sector and click Filter to view details.</p>
+                        </template>
+                    </div>
+
+                    <!-- Company Leaderboard Tab -->
+                    <div x-show="sectorTab === 'Company Leaderboard'" x-cloak>
+                        <h3 class="font-semibold mb-3">Overall Top Companies</h3>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2.5 text-left">#</th><th class="px-4 py-2.5 text-left">Company</th><th class="px-4 py-2.5 text-left">Sector</th><th class="px-4 py-2.5 text-right">Score</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in sectorFilteredData.slice(0, sectorTopN)" :key="i">
+                                        <tr class="border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''" @click="showCrossRef(r.company)">
+                                            <td class="px-4 py-2 text-gray-500" x-text="i+1"></td>
+                                            <td class="px-4 py-2 font-medium" x-text="r.company"></td>
+                                            <td class="px-4 py-2 text-xs text-gray-500" x-text="r.Sector"></td>
+                                            <td class="px-4 py-2 text-right"><span class="px-2 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r.score)" x-text="r.score"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3 class="font-semibold mb-3">Per-Sector Leaderboards</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <template x-for="sector in selectedSectors.slice(0, sectorTopN)" :key="sector">
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-3">
+                                    <h4 class="font-medium text-sm mb-2" x-text="sector"></h4>
+                                    <table class="text-xs w-full">
+                                        <thead><tr class="bg-gray-50 dark:bg-gray-700"><th class="px-2 py-1 text-left">Company</th><th class="px-2 py-1 text-right">Score</th></tr></thead>
+                                        <tbody>
+                                            <template x-for="(r, i) in sectorFilteredData.filter(d => d.Sector === sector).slice(0, 5)" :key="i">
+                                                <tr class="border-b dark:border-gray-700">
+                                                    <td class="px-2 py-1" x-text="r.company"></td>
+                                                    <td class="px-2 py-1 text-right font-bold" :style="'color:' + getScoreColor(r.score)" x-text="r.score"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Raw Data Tab -->
+                    <div x-show="sectorTab === 'Raw Data'" x-cloak>
+                        <div class="flex gap-3 mb-4">
+                            <a href="/api/sector/download/filtered" class="px-4 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800">Download Filtered CSV</a>
+                            <a href="/api/sector/download/combined" class="px-4 py-1.5 bg-good text-white text-sm rounded hover:bg-green-700">Download Combined CSV</a>
+                        </div>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2.5 text-left">Company</th><th class="px-4 py-2.5 text-right">Score</th><th class="px-4 py-2.5 text-left">Sector</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in sectorFilteredData" :key="i">
+                                        <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                            <td class="px-4 py-2" x-text="r.company"></td>
+                                            <td class="px-4 py-2 text-right"><span class="px-2 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r.score)" x-text="r.score"></span></td>
+                                            <td class="px-4 py-2 text-xs" x-text="r.Sector"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ==================== INDIVIDUAL STOCKS ==================== -->
+        <div x-show="activeModule === 'individual'" x-cloak>
+            <h2 class="text-2xl font-bold mb-4">Individual Stock Analyzer</h2>
+
+            <!-- Error state -->
+            <template x-if="errors.individual">
+                <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                    <p class="text-red-700 dark:text-red-300 text-sm" x-text="errors.individual"></p>
+                    <p class="text-red-500 dark:text-red-400 text-xs mt-1">Ensure the Individual_Stocks directory exists with .txt score files.</p>
+                </div>
+            </template>
+
+            <!-- Loading -->
+            <template x-if="loading.individual">
+                <div>
+                    <div class="grid grid-cols-4 gap-4 mb-6"><template x-for="i in 4"><div class="skeleton h-20 rounded-lg"></div></template></div>
+                    <div class="skeleton h-64 rounded-lg"></div>
+                </div>
+            </template>
+
+            <template x-if="!loading.individual && !errors.individual">
+                <div>
+                    <!-- KPI Row -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Companies</p>
+                            <p class="text-3xl font-bold" x-text="indFilteredData.length"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400" x-text="'Avg ' + indScoreType"></p>
+                            <p class="text-3xl font-bold" x-text="indAvgScore"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400" x-text="'Top ' + indScoreType"></p>
+                            <p class="text-3xl font-bold text-excellent" x-text="indTopScore"></p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Missing Scores</p>
+                            <p class="text-3xl font-bold text-weak" x-text="indMissingCount"></p>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="border-b dark:border-gray-700 mb-4">
+                        <div class="flex gap-1">
+                            <template x-for="tab in ['Overview', 'Score Comparison', 'Leaderboard', 'Raw Data']" :key="tab">
+                                <button @click="indTab = tab" :class="indTab === tab ? 'border-b-2 border-excellent text-excellent font-medium' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="px-4 py-2 text-sm transition-colors" x-text="tab"></button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div x-show="indTab === 'Overview'">
+                        <h3 class="font-semibold mb-3" x-text="'Top ' + indTopN + ' Stocks — Ranked by ' + indScoreType"></h3>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow mb-4">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700">
+                                    <th class="px-3 py-2.5 text-left">#</th><th class="px-3 py-2.5 text-left">Company</th>
+                                    <th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th>
+                                    <th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-left">Tier</th><th class="px-3 py-2.5 text-left">Signal</th>
+                                </tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in indFilteredData.slice(0, indTopN)" :key="i">
+                                        <tr class="border-b dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''" @click="showCrossRef(r.Company)">
+                                            <td class="px-3 py-2 text-gray-500" x-text="i+1"></td>
+                                            <td class="px-3 py-2 font-medium" x-text="r.Company"></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Financial Score'])" x-text="r['Financial Score'] || '—'"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Concall Score'])" x-text="r['Concall Score'] || '—'"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r['Combined Score'])" x-text="r['Combined Score'] || '—'"></span></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="tierBadgeStyle(r.Tier)" x-text="r.Tier"></span></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs font-medium" :style="signalBadgeStyle(r.Signal)" x-text="r.Signal"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-4">
+                            <strong>Signal guide:</strong> Strong Buy = both >= 75 | Moderate Buy = both >= 60 | Mixed = scores disagree | Avoid = both &lt; 50 | Grey = one score missing
+                        </p>
+
+                        <!-- Tier Summary -->
+                        <h4 class="font-semibold mb-2">Tier Summary</h4>
+                        <div class="grid grid-cols-4 gap-3">
+                            <template x-for="tier in ['Excellent', 'Good', 'Average', 'Weak']" :key="tier">
+                                <div class="p-3 rounded-lg text-center" :style="tierBadgeStyle(tier)">
+                                    <p class="text-2xl font-bold" x-text="indTierSummary[tier] || 0"></p>
+                                    <p class="text-xs" x-text="tier"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Score Comparison Tab -->
+                    <div x-show="indTab === 'Score Comparison'" x-cloak>
+                        <!-- Aligned -->
+                        <h3 class="font-semibold mb-2">Aligned Stocks — Scores Within 10 Points</h3>
+                        <p class="text-xs text-gray-500 mb-3">Both financial data and management credibility tell the same story. High confidence.</p>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow mb-6" x-show="indAligned.length">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2.5 text-left">#</th><th class="px-3 py-2.5 text-left">Company</th><th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th><th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-right">Gap</th><th class="px-3 py-2.5 text-left">Signal</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in indAligned" :key="i">
+                                        <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                            <td class="px-3 py-2 text-gray-500" x-text="i+1"></td>
+                                            <td class="px-3 py-2 font-medium" x-text="r.Company"></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Financial Score'])" x-text="r['Financial Score']"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Concall Score'])" x-text="r['Concall Score']"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r['Combined Score'])" x-text="r['Combined Score']"></span></td>
+                                            <td class="px-3 py-2 text-right" x-text="r.Gap"></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="signalBadgeStyle(r.Signal)" x-text="r.Signal"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p x-show="!indAligned.length" class="text-gray-500 text-sm mb-6">No aligned stocks found.</p>
+
+                        <!-- Divergent -->
+                        <h3 class="font-semibold mb-2">Divergent Stocks — Gap > 10 Points</h3>
+                        <p class="text-xs text-gray-500 mb-3">Scores disagree significantly. Investigate further. Positive gap = Financials stronger.</p>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow mb-6" x-show="indDivergent.length">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2.5 text-left">#</th><th class="px-3 py-2.5 text-left">Company</th><th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th><th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-right">Gap</th><th class="px-3 py-2.5 text-left">Stronger</th><th class="px-3 py-2.5 text-left">Signal</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in indDivergent" :key="i">
+                                        <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                            <td class="px-3 py-2 text-gray-500" x-text="i+1"></td>
+                                            <td class="px-3 py-2 font-medium" x-text="r.Company"></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Financial Score'])" x-text="r['Financial Score']"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Concall Score'])" x-text="r['Concall Score']"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r['Combined Score'])" x-text="r['Combined Score']"></span></td>
+                                            <td class="px-3 py-2 text-right" x-text="r.Gap"></td>
+                                            <td class="px-3 py-2 text-xs" x-text="r.Stronger"></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="signalBadgeStyle(r.Signal)" x-text="r.Signal"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p x-show="!indDivergent.length" class="text-gray-500 text-sm mb-6">No divergent stocks found.</p>
+
+                        <!-- Full Comparison -->
+                        <h3 class="font-semibold mb-2">Full Comparison — All Companies</h3>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow" x-show="indComparison.length">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2.5 text-left">#</th><th class="px-3 py-2.5 text-left">Company</th><th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th><th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-right">Gap</th><th class="px-3 py-2.5 text-left">Stronger</th><th class="px-3 py-2.5 text-left">Signal</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in indComparison" :key="i">
+                                        <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                            <td class="px-3 py-2 text-gray-500" x-text="i+1"></td>
+                                            <td class="px-3 py-2 font-medium" x-text="r.Company"></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Financial Score'])" x-text="r['Financial Score']"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Concall Score'])" x-text="r['Concall Score']"></span></td>
+                                            <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r['Combined Score'])" x-text="r['Combined Score']"></span></td>
+                                            <td class="px-3 py-2 text-right" x-text="r.Gap"></td>
+                                            <td class="px-3 py-2 text-xs" x-text="r.Stronger"></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="signalBadgeStyle(r.Signal)" x-text="r.Signal"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Leaderboard Tab -->
+                    <div x-show="indTab === 'Leaderboard'" x-cloak>
+                        <h3 class="font-semibold mb-3" x-text="'Top ' + indTopN + ' by ' + indScoreType"></h3>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2.5 text-left">Company</th><th class="px-4 py-2.5 text-right">Financial</th><th class="px-4 py-2.5 text-right">Concall</th><th class="px-4 py-2.5 text-right">Combined</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in indFilteredData.slice(0, indTopN)" :key="i">
+                                        <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                            <td class="px-4 py-2 font-medium" x-text="r.Company"></td>
+                                            <td class="px-4 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Financial Score'])" x-text="r['Financial Score'] || '—'"></span></td>
+                                            <td class="px-4 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs" :style="scoreBadgeStyle(r['Concall Score'])" x-text="r['Concall Score'] || '—'"></span></td>
+                                            <td class="px-4 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r['Combined Score'])" x-text="r['Combined Score'] || '—'"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Missing scores -->
+                        <template x-if="indMissing.length">
+                            <div>
+                                <h3 class="font-semibold mb-2">Companies Missing a Score</h3>
+                                <p class="text-xs text-gray-500 mb-3">These companies have only one of the two scores.</p>
+                                <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow">
+                                    <table class="text-sm">
+                                        <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2.5 text-left">Company</th><th class="px-4 py-2.5 text-right">Financial</th><th class="px-4 py-2.5 text-right">Concall</th></tr></thead>
+                                        <tbody>
+                                            <template x-for="(r, i) in indMissing" :key="i">
+                                                <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                                    <td class="px-4 py-2" x-text="r.Company"></td>
+                                                    <td class="px-4 py-2 text-right" x-text="r['Financial Score'] || '—'"></td>
+                                                    <td class="px-4 py-2 text-right" x-text="r['Concall Score'] || '—'"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Raw Data Tab -->
+                    <div x-show="indTab === 'Raw Data'" x-cloak>
+                        <div class="flex gap-3 mb-4">
+                            <a href="/api/individual/download/csv" class="px-4 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800">Download CSV</a>
+                            <a href="/api/individual/download/json" class="px-4 py-1.5 bg-good text-white text-sm rounded hover:bg-green-700">Download JSON</a>
+                        </div>
+                        <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow">
+                            <table class="text-sm">
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2.5 text-left">Company</th><th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th><th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-left">Tier</th><th class="px-3 py-2.5 text-left">Signal</th></tr></thead>
+                                <tbody>
+                                    <template x-for="(r, i) in indAllData" :key="i">
+                                        <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                            <td class="px-3 py-2" x-text="r.Company"></td>
+                                            <td class="px-3 py-2 text-right" x-text="r['Financial Score'] || '—'"></td>
+                                            <td class="px-3 py-2 text-right" x-text="r['Concall Score'] || '—'"></td>
+                                            <td class="px-3 py-2 text-right" x-text="r['Combined Score'] || '—'"></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="tierBadgeStyle(r.Tier)" x-text="r.Tier"></span></td>
+                                            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="signalBadgeStyle(r.Signal)" x-text="r.Signal"></span></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ==================== SECTOR PIPELINE ==================== -->
+        <div x-show="activeModule === 'sectorPipeline'" x-cloak>
+            <h2 class="text-2xl font-bold mb-4">Sector Pipeline</h2>
+
+            <!-- Prompt Editor -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-semibold text-sm">System Prompts</h3>
+                    <button @click="resetSectorPrompts()" class="text-xs text-excellent hover:underline">Reset to Defaults</button>
+                </div>
+                <div class="flex gap-1 border-b dark:border-gray-700 mb-2">
+                    <button @click="sp_promptTab = 'screener'" :class="sp_promptTab === 'screener' ? 'border-b-2 border-excellent text-excellent' : 'text-gray-500'" class="px-3 py-1 text-xs">Extraction</button>
+                    <button @click="sp_promptTab = 'score'" :class="sp_promptTab === 'score' ? 'border-b-2 border-excellent text-excellent' : 'text-gray-500'" class="px-3 py-1 text-xs">Scoring</button>
+                    <button @click="sp_promptTab = 'json'" :class="sp_promptTab === 'json' ? 'border-b-2 border-excellent text-excellent' : 'text-gray-500'" class="px-3 py-1 text-xs">JSON</button>
+                </div>
+                <textarea x-show="sp_promptTab === 'screener'" x-model="sp_prompts.screener" class="w-full h-40 text-xs p-2 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 font-mono"></textarea>
+                <textarea x-show="sp_promptTab === 'score'" x-model="sp_prompts.score" class="w-full h-40 text-xs p-2 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 font-mono" x-cloak></textarea>
+                <textarea x-show="sp_promptTab === 'json'" x-model="sp_prompts.json" class="w-full h-40 text-xs p-2 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 font-mono" x-cloak></textarea>
+            </div>
+
+            <!-- Progress Stepper -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                <h3 class="font-semibold text-sm mb-3">Pipeline Progress</h3>
+                <div class="flex items-center gap-1 mb-3 flex-wrap">
+                    <template x-for="(label, idx) in ['Scrape', 'Links', 'Names', 'Classify', 'Extract', 'Score', 'JSON', 'Save']" :key="idx">
+                        <div class="flex items-center gap-1">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                                :class="sp_phase > idx ? 'bg-excellent text-white' : sp_phase === idx ? 'bg-good text-white animate-pulse' : 'bg-gray-200 dark:bg-gray-600 text-gray-500'">
+                                <span x-text="sp_phase > idx ? '✓' : (idx + 1)"></span>
+                            </div>
+                            <span class="text-xs hidden md:inline" x-text="label"></span>
+                            <span x-show="idx < 7" class="text-gray-300 dark:text-gray-600 hidden md:inline">→</span>
+                        </div>
+                    </template>
+                </div>
+                <!-- Progress bar -->
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-2">
+                    <div class="bg-excellent h-2.5 rounded-full transition-all duration-300" :style="'width:' + (sp_progress * 100) + '%'"></div>
+                </div>
+                <p class="text-xs text-gray-500" x-text="sp_progressText || 'Idle'"></p>
+            </div>
+
+            <!-- Logs -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                <h3 class="font-semibold text-sm mb-2">Logs</h3>
+                <div class="bg-gray-900 text-green-400 font-mono text-xs p-3 rounded h-48 overflow-y-auto" x-ref="spLogBox">
+                    <template x-for="(log, i) in sp_logs" :key="i">
+                        <div x-text="log"></div>
+                    </template>
+                    <div x-show="!sp_logs.length" class="text-gray-500">No logs yet. Start the pipeline to see output.</div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <template x-if="sp_results && sp_results.score_data && sp_results.score_data.length">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                    <h3 class="font-semibold text-sm mb-3" x-text="(sp_results.sector || 'Sector') + ' — Results'"></h3>
+                    <div class="grid grid-cols-4 gap-3 mb-4">
+                        <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded"><p class="text-xs text-gray-500">Companies</p><p class="text-2xl font-bold" x-text="sp_results.score_data.length"></p></div>
+                        <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded"><p class="text-xs text-gray-500">Avg Score</p><p class="text-2xl font-bold" x-text="(sp_results.score_data.reduce((a,b) => a + b.score, 0) / sp_results.score_data.length).toFixed(1)"></p></div>
+                        <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded"><p class="text-xs text-gray-500">Top Score</p><p class="text-2xl font-bold text-excellent" x-text="Math.max(...sp_results.score_data.map(d => d.score))"></p></div>
+                        <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded"><p class="text-xs text-gray-500">Sector</p><p class="text-sm font-bold" x-text="sp_results.sector_name"></p></div>
+                    </div>
+                    <div class="table-container">
+                        <table class="text-sm">
+                            <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2 text-left">Company</th><th class="px-4 py-2 text-right">Score</th><th class="px-4 py-2 text-left">Sector</th></tr></thead>
+                            <tbody>
+                                <template x-for="(r, i) in sp_results.score_data" :key="i">
+                                    <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
+                                        <td class="px-4 py-2" x-text="r.company"></td>
+                                        <td class="px-4 py-2 text-right"><span class="px-2 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r.score)" x-text="r.score"></span></td>
+                                        <td class="px-4 py-2 text-xs" x-text="r.Sector"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="spBarChart" class="mt-4"></div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ==================== INDIVIDUAL PIPELINE ==================== -->
+        <div x-show="activeModule === 'individualPipeline'" x-cloak>
+            <h2 class="text-2xl font-bold mb-4">Individual Stock Pipeline</h2>
+
+            <!-- Prompt Editor -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-semibold text-sm">System Prompts</h3>
+                    <button @click="resetIndividualPrompts()" class="text-xs text-excellent hover:underline">Reset to Defaults</button>
+                </div>
+                <div class="flex gap-1 border-b dark:border-gray-700 mb-2 flex-wrap">
+                    <template x-for="(label, key) in {screener:'Screener', json:'JSON', kpi:'KPI', kpi_cal:'KPI Calc', gemini_search:'Search', final:'Final', concall_score:'Concall'}" :key="key">
+                        <button @click="ip_promptTab = key" :class="ip_promptTab === key ? 'border-b-2 border-excellent text-excellent' : 'text-gray-500'" class="px-2 py-1 text-xs" x-text="label"></button>
+                    </template>
+                </div>
+                <template x-for="key in ['screener','json','kpi','kpi_cal','gemini_search','final','concall_score']" :key="key">
+                    <textarea x-show="ip_promptTab === key" x-model="ip_prompts[key]" class="w-full h-40 text-xs p-2 border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 font-mono"></textarea>
+                </template>
+            </div>
+
+            <!-- Step-by-step buttons -->
+            <template x-if="ip_stepByStep">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                    <h3 class="font-semibold text-sm mb-3">Step-by-Step Execution</h3>
+                    <div class="space-y-2">
+                        <template x-for="(label, idx) in ['Step 0: Scrape Metadata', 'Step 1: Financial Extraction', 'Step 2: JSON Conversion', 'Step 3: KPI Generation', 'Step 4: KPI Values', 'Step 5: Final Analysis', 'Step 6: Walk the Talk', 'Step 7: Concall Score']" :key="idx">
+                            <div class="flex items-center gap-3">
+                                <button @click="runIndividualStep(idx)" :disabled="ip_running || !canRunStep(idx)" class="px-3 py-1.5 bg-excellent text-white text-xs rounded hover:bg-green-800 disabled:opacity-50 w-48" x-text="label"></button>
+                                <span class="text-xs" :class="ip_stepStatus[idx] === 'done' ? 'text-excellent' : ip_stepStatus[idx] === 'running' ? 'text-good animate-pulse' : 'text-gray-400'" x-text="ip_stepStatus[idx] === 'done' ? 'Complete' : ip_stepStatus[idx] === 'running' ? 'Running...' : 'Pending'"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Progress Stepper -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                <h3 class="font-semibold text-sm mb-3">Pipeline Progress</h3>
+                <div class="flex items-center gap-1 mb-3 flex-wrap">
+                    <template x-for="(label, idx) in ['Scrape', 'Extract', 'JSON', 'KPIs', 'Values', 'Analysis', 'WTT', 'Concall']" :key="idx">
+                        <div class="flex items-center gap-1">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                                :class="ip_phase > idx ? 'bg-excellent text-white' : ip_phase === idx ? 'bg-good text-white animate-pulse' : 'bg-gray-200 dark:bg-gray-600 text-gray-500'">
+                                <span x-text="ip_phase > idx ? '✓' : idx"></span>
+                            </div>
+                            <span class="text-xs hidden md:inline" x-text="label"></span>
+                            <span x-show="idx < 7" class="text-gray-300 dark:text-gray-600 hidden md:inline">→</span>
+                        </div>
+                    </template>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-2">
+                    <div class="bg-excellent h-2.5 rounded-full transition-all duration-300" :style="'width:' + (ip_progress * 100) + '%'"></div>
+                </div>
+                <p class="text-xs text-gray-500" x-text="ip_progressText || 'Idle'"></p>
+            </div>
+
+            <!-- Logs -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+                <h3 class="font-semibold text-sm mb-2">Logs</h3>
+                <div class="bg-gray-900 text-green-400 font-mono text-xs p-3 rounded h-48 overflow-y-auto" x-ref="ipLogBox">
+                    <template x-for="(log, i) in ip_logs" :key="i">
+                        <div x-text="log"></div>
+                    </template>
+                    <div x-show="!ip_logs.length" class="text-gray-500">No logs yet.</div>
+                </div>
+            </div>
+
+            <!-- Results Tabs -->
+            <template x-if="ip_results && (ip_results.result_final_analysis || ip_results.result_walkthetalk || ip_results.result_concall_score)">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <h3 class="font-semibold text-sm" x-text="(ip_results.company_name || 'Company') + ' — Results'"></h3>
+                    </div>
+                    <div class="flex gap-1 border-b dark:border-gray-700 mb-3">
+                        <template x-for="tab in ['Financial Analysis', 'Walk the Talk', 'Concall Score', 'Intermediate']" :key="tab">
+                            <button @click="ip_resultTab = tab" :class="ip_resultTab === tab ? 'border-b-2 border-excellent text-excellent' : 'text-gray-500'" class="px-3 py-1 text-xs" x-text="tab"></button>
+                        </template>
+                    </div>
+                    <div x-show="ip_resultTab === 'Financial Analysis'" class="prose prose-sm dark:prose-invert max-w-none" x-html="renderMd(ip_results.result_final_analysis || 'Not available yet.')"></div>
+                    <div x-show="ip_resultTab === 'Walk the Talk'" x-cloak class="prose prose-sm dark:prose-invert max-w-none" x-html="renderMd(ip_results.result_walkthetalk || 'Not available yet.')"></div>
+                    <div x-show="ip_resultTab === 'Concall Score'" x-cloak class="prose prose-sm dark:prose-invert max-w-none" x-html="renderMd(ip_results.result_concall_score || 'Not available yet.')"></div>
+                    <div x-show="ip_resultTab === 'Intermediate'" x-cloak>
+                        <div class="space-y-3">
+                            <details class="border dark:border-gray-600 rounded p-2">
+                                <summary class="text-xs font-medium cursor-pointer">Step 1: Financial Text</summary>
+                                <pre class="text-xs mt-2 max-h-60 overflow-auto bg-gray-50 dark:bg-gray-700 p-2 rounded" x-text="ip_results.result_financial_text ? ip_results.result_financial_text.substring(0, 5000) + '...' : 'N/A'"></pre>
+                            </details>
+                            <details class="border dark:border-gray-600 rounded p-2">
+                                <summary class="text-xs font-medium cursor-pointer">Step 2: Financial JSON</summary>
+                                <pre class="text-xs mt-2 max-h-60 overflow-auto bg-gray-50 dark:bg-gray-700 p-2 rounded" x-text="typeof ip_results.result_financial_json === 'object' ? JSON.stringify(ip_results.result_financial_json, null, 2) : (ip_results.result_financial_json || 'N/A')"></pre>
+                            </details>
+                            <details class="border dark:border-gray-600 rounded p-2">
+                                <summary class="text-xs font-medium cursor-pointer">Step 3: Sector KPIs</summary>
+                                <div class="prose prose-sm dark:prose-invert max-w-none mt-2" x-html="renderMd(ip_results.result_kpi_json || 'N/A')"></div>
+                            </details>
+                            <details class="border dark:border-gray-600 rounded p-2">
+                                <summary class="text-xs font-medium cursor-pointer">Step 4: KPI Values</summary>
+                                <div class="prose prose-sm dark:prose-invert max-w-none mt-2" x-html="renderMd(ip_results.result_kpi_values || 'N/A')"></div>
+                            </details>
+                            <details class="border dark:border-gray-600 rounded p-2">
+                                <summary class="text-xs font-medium cursor-pointer">Step 4b: KPI Values (Cleaned)</summary>
+                                <div class="prose prose-sm dark:prose-invert max-w-none mt-2" x-html="renderMd(ip_results.result_kpi_values_clean || 'N/A')"></div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+    </main>
+</div>
+
+<script>
+function app() {
+    return {
+        // Global state
+        darkMode: localStorage.getItem('darkMode') === 'true',
+        activeModule: 'dashboard',
+        sidebarOpen: true,
+        crossRefModal: false,
+        crossRefData: null,
+
+        // Loading & errors
+        loading: { dashboard: true, sector: true, individual: true },
+        errors: { sector: null, individual: null },
+
+        // Sector state
+        sectorTab: 'Overview',
+        sectorList: [],
+        selectedSectors: [],
+        sectorSelectAll: true,
+        sectorTopN: 10,
+        sectorAllData: [],
+        sectorSummary: [],
+        sectorDetailData: [],
+        sectorDrillSector: '',
+        sectorDrillMin: 0,
+        sectorDrillMax: 100,
+
+        // Individual state
+        indTab: 'Overview',
+        indScoreType: 'Combined Score',
+        indMinScore: 0,
+        indMaxScore: 100,
+        indTopN: 15,
+        indAllData: [],
+        indComparison: [],
+        indAligned: [],
+        indDivergent: [],
+        indMissing: [],
+        indTierSummary: {},
+
+        // Sector Pipeline state
+        sp_url: '',
+        sp_modelScreener: 'gemini',
+        sp_modelScore: 'gemini',
+        sp_promptTab: 'screener',
+        sp_prompts: { screener: '', score: '', json: '' },
+        sp_promptDefaults: { screener: '', score: '', json: '' },
+        sp_apiStatus: {},
+        sp_running: false,
+        sp_runId: null,
+        sp_phase: -1,
+        sp_progress: 0,
+        sp_progressText: '',
+        sp_logs: [],
+        sp_results: null,
+        sp_eventSource: null,
+
+        // Individual Pipeline state
+        ip_url: '',
+        ip_stepByStep: false,
+        ip_models: { step1: 'gemini', step2: 'gemini', step3: 'openai', step4: 'gemini', step5: 'openai', step6: 'gemini', step7: 'openai' },
+        ip_promptTab: 'screener',
+        ip_prompts: { screener: '', json: '', kpi: '', kpi_cal: '', gemini_search: '', final: '', concall_score: '' },
+        ip_promptDefaults: { screener: '', json: '', kpi: '', kpi_cal: '', gemini_search: '', final: '', concall_score: '' },
+        ip_running: false,
+        ip_runId: null,
+        ip_phase: -1,
+        ip_progress: 0,
+        ip_progressText: '',
+        ip_logs: [],
+        ip_results: null,
+        ip_resultTab: 'Financial Analysis',
+        ip_eventSource: null,
+        ip_stepStatus: Array(8).fill('pending'),
+
+        // Computed
+        get sectorFilteredData() {
+            return this.sectorAllData.filter(d => this.selectedSectors.includes(d.Sector)).sort((a, b) => b.score - a.score);
+        },
+        get sectorFilteredSummary() {
+            const sectors = {};
+            for (const d of this.sectorFilteredData) {
+                if (!sectors[d.Sector]) sectors[d.Sector] = { Sector: d.Sector, scores: [] };
+                sectors[d.Sector].scores.push(d.score);
+            }
+            const result = Object.values(sectors).map(s => ({
+                Sector: s.Sector,
+                avg_score: (s.scores.reduce((a, b) => a + b, 0) / s.scores.length).toFixed(1),
+                top_score: Math.max(...s.scores),
+                company_count: s.scores.length,
+            })).sort((a, b) => b.top_score - a.top_score);
+            return result.slice(0, this.sectorTopN);
+        },
+        get sectorAvgScore() {
+            const data = this.sectorFilteredData;
+            if (!data.length) return '—';
+            return (data.reduce((a, b) => a + b.score, 0) / data.length).toFixed(1);
+        },
+        get sectorTopScore() {
+            const data = this.sectorFilteredData;
+            if (!data.length) return '—';
+            return Math.max(...data.map(d => d.score));
+        },
+        get indFilteredData() {
+            const st = this.indScoreType;
+            return this.indAllData.filter(r => {
+                const v = r[st];
+                return v !== '' && v !== null && v !== undefined && v >= this.indMinScore && v <= this.indMaxScore;
+            }).sort((a, b) => (b[st] || 0) - (a[st] || 0));
+        },
+        get indAvgScore() {
+            const data = this.indFilteredData;
+            if (!data.length) return '—';
+            const vals = data.map(d => d[this.indScoreType]).filter(v => v !== '' && v != null);
+            if (!vals.length) return '—';
+            return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+        },
+        get indTopScore() {
+            const data = this.indFilteredData;
+            if (!data.length) return '—';
+            const vals = data.map(d => d[this.indScoreType]).filter(v => v !== '' && v != null);
+            if (!vals.length) return '—';
+            return Math.max(...vals);
+        },
+        get indMissingCount() {
+            return this.indAllData.filter(r => r['Combined Score'] === '' || r['Combined Score'] === null || r['Combined Score'] === undefined).length;
+        },
+        get indTopPerformers() {
+            return this.indAllData.filter(r => r['Combined Score'] && r['Combined Score'] !== '').sort((a, b) => b['Combined Score'] - a['Combined Score']).slice(0, 5);
+        },
+        get dashboardHighestScore() {
+            const scores = [];
+            if (this.sectorAllData.length) scores.push(Math.max(...this.sectorAllData.map(d => d.score)));
+            const indScores = this.indAllData.map(d => d['Combined Score']).filter(v => v && v !== '');
+            if (indScores.length) scores.push(Math.max(...indScores));
+            return scores.length ? Math.max(...scores) : '—';
+        },
+
+        // Color helpers
+        getScoreColor(score) {
+            if (score === '' || score == null) return '#6b7280';
+            if (score >= 80) return '#2d6a4f';
+            if (score >= 60) return '#52b788';
+            if (score >= 40) return '#f4a261';
+            return '#e76f51';
+        },
+        scoreBadgeStyle(score) {
+            if (score === '' || score == null) return 'background-color: #374151; color: #9ca3af';
+            const bg = this.getScoreColor(score);
+            const text = score >= 40 && score < 60 ? 'black' : (score >= 60 ? 'white' : 'white');
+            return `background-color: ${bg}; color: ${text}`;
+        },
+        tierBadgeStyle(tier) {
+            const map = { 'Excellent': '#2d6a4f', 'Good': '#52b788', 'Average': '#f4a261', 'Weak': '#e76f51' };
+            const textMap = { 'Excellent': 'white', 'Good': 'white', 'Average': 'black', 'Weak': 'white' };
+            return `background-color: ${map[tier] || '#374151'}; color: ${textMap[tier] || '#9ca3af'}`;
+        },
+        getSignalColor(signal) {
+            const map = {
+                'Strong Buy': '#2d6a4f', 'Moderate Buy': '#52b788', 'Mixed': '#f4a261',
+                'Avoid': '#e76f51', 'Financials Strong, Concall Weak': '#e9c46a',
+                'Concall Strong, Financials Weak': '#e9c46a', 'Concall Missing': '#adb5bd',
+                'Financials Missing': '#adb5bd'
+            };
+            return map[signal] || '#374151';
+        },
+        getSignalTextColor(signal) {
+            const dark = ['Strong Buy', 'Moderate Buy', 'Avoid'];
+            return dark.includes(signal) ? 'white' : 'black';
+        },
+        signalBadgeStyle(signal) {
+            return `background-color: ${this.getSignalColor(signal)}; color: ${this.getSignalTextColor(signal)}`;
+        },
+
+        // API calls
+        async fetchJSON(url) {
+            try {
+                const res = await fetch(url);
+                return await res.json();
+            } catch (e) {
+                console.error('Fetch error:', url, e);
+                return null;
+            }
+        },
+
+        async searchGlobal(query) {
+            if (!query || query.length < 2) return { sector_results: [], individual_results: [] };
+            return await this.fetchJSON(`/api/search?q=${encodeURIComponent(query)}`);
+        },
+
+        async showCrossRef(companyName) {
+            this.crossRefData = await this.fetchJSON(`/api/cross-reference/${encodeURIComponent(companyName)}`);
+            this.crossRefModal = true;
+        },
+
+        async loadSectorData() {
+            this.loading.sector = true;
+            this.errors.sector = null;
+            try {
+                const [allRes, sectorsRes] = await Promise.all([
+                    this.fetchJSON('/api/sector/all'),
+                    this.fetchJSON('/api/sector/sectors'),
+                ]);
+                if (allRes?.error) { this.errors.sector = allRes.error; }
+                this.sectorAllData = allRes?.data || [];
+                this.sectorList = sectorsRes?.sectors || [];
+                this.selectedSectors = [...this.sectorList];
+                if (this.sectorList.length) this.sectorDrillSector = this.sectorList[0];
+            } catch (e) { this.errors.sector = 'Failed to load sector data.'; }
+            this.loading.sector = false;
+        },
+
+        async loadIndividualData() {
+            this.loading.individual = true;
+            this.errors.individual = null;
+            try {
+                const [scoresRes, compRes, alignRes, divRes, missRes, tierRes] = await Promise.all([
+                    this.fetchJSON('/api/individual/scores'),
+                    this.fetchJSON('/api/individual/comparison'),
+                    this.fetchJSON('/api/individual/aligned'),
+                    this.fetchJSON('/api/individual/divergent'),
+                    this.fetchJSON('/api/individual/missing'),
+                    this.fetchJSON('/api/individual/tier-summary'),
+                ]);
+                if (scoresRes?.error) { this.errors.individual = scoresRes.error; }
+                this.indAllData = scoresRes?.data || [];
+                this.indComparison = compRes?.data || [];
+                this.indAligned = alignRes?.data || [];
+                this.indDivergent = divRes?.data || [];
+                this.indMissing = missRes?.data || [];
+                this.indTierSummary = tierRes?.data || {};
+            } catch (e) { this.errors.individual = 'Failed to load individual stock data.'; }
+            this.loading.individual = false;
+        },
+
+        async loadSectorDetail() {
+            if (!this.sectorDrillSector) return;
+            const res = await this.fetchJSON(`/api/sector/detail/${encodeURIComponent(this.sectorDrillSector)}?min_score=${this.sectorDrillMin}&max_score=${this.sectorDrillMax}`);
+            this.sectorDetailData = res?.data || [];
+            this.$nextTick(() => this.renderSectorCharts());
+        },
+
+        async refreshSectorData() {
+            await this.fetchJSON('/api/sector/refresh');
+            await this.loadSectorData();
+        },
+
+        async refreshIndividualData() {
+            await this.fetchJSON('/api/individual/refresh');
+            await this.loadIndividualData();
+        },
+
+        toggleAllSectors() {
+            this.selectedSectors = this.sectorSelectAll ? [...this.sectorList] : [];
+        },
+
+        // Charts
+        renderSectorCharts() {
+            if (!this.sectorDetailData.length) return;
+            const data = [...this.sectorDetailData].sort((a, b) => a.score - b.score);
+            const companies = data.map(d => d.company);
+            const scores = data.map(d => d.score);
+            const colors = scores.map(s => this.getScoreColor(s));
+            const isDark = this.darkMode;
+            const layout = {
+                height: Math.max(data.length * 35, 300),
+                margin: { l: 150, r: 30, t: 40, b: 30 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: isDark ? '#e5e7eb' : '#111827', size: 11 },
+                xaxis: { gridcolor: isDark ? '#374151' : '#e5e7eb' },
+                yaxis: { gridcolor: isDark ? '#374151' : '#e5e7eb' },
+                title: { text: this.sectorDrillSector + ' — Company Scores', font: { size: 14 } },
+            };
+
+            Plotly.newPlot('sectorBarChart', [{
+                type: 'bar', orientation: 'h', x: scores, y: companies,
+                marker: { color: scores, colorscale: 'RdYlGn' },
+                hovertemplate: '%{y}: %{x}<extra></extra>',
+            }], layout, { responsive: true, displayModeBar: false });
+
+            // Pie chart
+            const tierCounts = { 'Excellent (80-100)': 0, 'Good (60-79)': 0, 'Average (40-59)': 0, 'Below Average (<40)': 0 };
+            scores.forEach(s => {
+                if (s >= 80) tierCounts['Excellent (80-100)']++;
+                else if (s >= 60) tierCounts['Good (60-79)']++;
+                else if (s >= 40) tierCounts['Average (40-59)']++;
+                else tierCounts['Below Average (<40)']++;
+            });
+            const tierLabels = Object.keys(tierCounts);
+            const tierValues = Object.values(tierCounts);
+            const tierColors = ['#2d6a4f', '#52b788', '#f4a261', '#e76f51'];
+
+            Plotly.newPlot('sectorPieChart', [{
+                type: 'pie', labels: tierLabels, values: tierValues,
+                marker: { colors: tierColors },
+                textinfo: 'label+percent', hovertemplate: '%{label}: %{value}<extra></extra>',
+            }], {
+                ...layout, height: 350, title: { text: 'Score Tier Breakdown', font: { size: 14 } },
+            }, { responsive: true, displayModeBar: false });
+        },
+
+        // Markdown renderer
+        renderMd(text) {
+            if (!text || text === 'N/A' || text === 'Not available yet.') return `<p class="text-gray-500 text-sm">${text}</p>`;
+            try { return marked.parse(text); } catch { return `<pre>${text}</pre>`; }
+        },
+
+        // ── Pipeline: API Status ──
+        async checkApiStatus() {
+            const res = await this.fetchJSON('/api/pipeline/api-status');
+            if (res?.models) this.sp_apiStatus = res.models;
+        },
+
+        // ── Pipeline: SSE Connection ──
+        connectSSE(runId, target) {
+            const es = new EventSource(`/api/pipeline/stream/${runId}`);
+            const isIP = target === 'ip';
+
+            es.addEventListener('phase_start', (e) => {
+                const d = JSON.parse(e.data);
+                if (isIP) { this.ip_phase = d.data.phase; } else { this.sp_phase = d.data.phase; }
+            });
+            es.addEventListener('progress', (e) => {
+                const d = JSON.parse(e.data);
+                if (isIP) { this.ip_progress = d.data.progress; this.ip_progressText = d.data.text; }
+                else { this.sp_progress = d.data.progress; this.sp_progressText = d.data.text; }
+            });
+            es.addEventListener('log', (e) => {
+                const d = JSON.parse(e.data);
+                if (isIP) { this.ip_logs.push(d.data.message); this.$nextTick(() => { if(this.$refs.ipLogBox) this.$refs.ipLogBox.scrollTop = this.$refs.ipLogBox.scrollHeight; }); }
+                else { this.sp_logs.push(d.data.message); this.$nextTick(() => { if(this.$refs.spLogBox) this.$refs.spLogBox.scrollTop = this.$refs.spLogBox.scrollHeight; }); }
+            });
+            es.addEventListener('phase_complete', (e) => {
+                const d = JSON.parse(e.data);
+                if (isIP) { this.ip_phase = d.data.phase + 1; this.ip_stepStatus[d.data.phase] = 'done'; }
+                else { this.sp_phase = d.data.phase + 1; }
+            });
+            es.addEventListener('done', async (e) => {
+                es.close();
+                if (isIP) { this.ip_running = false; this.ip_progress = 1; this.ip_progressText = 'Complete!'; await this.pollIndividualResults(); }
+                else { this.sp_running = false; this.sp_progress = 1; this.sp_progressText = 'Complete!'; await this.pollSectorResults(); }
+                // Refresh main data views
+                this.refreshSectorData();
+                this.refreshIndividualData();
+            });
+            es.addEventListener('error', (e) => {
+                es.close();
+                if (isIP) { this.ip_running = false; this.ip_progressText = 'Error!'; }
+                else { this.sp_running = false; this.sp_progressText = 'Error!'; }
+            });
+            es.onerror = () => { es.close(); if (isIP) this.ip_running = false; else this.sp_running = false; };
+            return es;
+        },
+
+        // ── Sector Pipeline ──
+        async startSectorPipeline() {
+            if (!this.sp_url.trim()) return alert('Enter a sector URL');
+            this.sp_running = true; this.sp_logs = []; this.sp_phase = -1; this.sp_progress = 0; this.sp_results = null;
+            const res = await fetch('/api/pipeline/sector/start', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    url: this.sp_url, model_screener: this.sp_modelScreener, model_score: this.sp_modelScore,
+                    sp_screener: this.sp_prompts.screener || null, sp_score: this.sp_prompts.score || null, sp_json: this.sp_prompts.json || null,
+                }),
+            }).then(r => r.json());
+            this.sp_runId = res.run_id;
+            this.sp_eventSource = this.connectSSE(res.run_id, 'sp');
+        },
+        async pollSectorResults() {
+            if (!this.sp_runId) return;
+            const res = await this.fetchJSON(`/api/pipeline/status/${this.sp_runId}`);
+            if (res) { this.sp_results = res.results; this.sp_logs = res.logs || this.sp_logs; }
+        },
+        async resetSectorPrompts() {
+            const d = await this.fetchJSON('/api/pipeline/prompts/sector/defaults');
+            if (d) { this.sp_prompts = {...d}; this.sp_promptDefaults = {...d}; }
+        },
+
+        // ── Individual Pipeline ──
+        async startIndividualPipeline() {
+            if (!this.ip_url.trim()) return alert('Enter a company URL');
+            this.ip_running = true; this.ip_logs = []; this.ip_phase = -1; this.ip_progress = 0; this.ip_results = null; this.ip_stepStatus = Array(8).fill('pending');
+            const res = await fetch('/api/pipeline/individual/start', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ url: this.ip_url, models: this.ip_models, custom_prompts: this.ip_prompts }),
+            }).then(r => r.json());
+            this.ip_runId = res.run_id;
+            this.ip_eventSource = this.connectSSE(res.run_id, 'ip');
+        },
+        async runIndividualStep(step) {
+            if (!this.ip_url.trim() && step === 0) return alert('Enter a company URL');
+            this.ip_running = true; this.ip_stepStatus[step] = 'running';
+            const runId = this.ip_runId;
+            let res;
+            if (runId) {
+                res = await fetch('/api/pipeline/individual/run-step', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ run_id: runId, step: step, url: this.ip_url, models: this.ip_models, custom_prompts: this.ip_prompts }),
+                }).then(r => r.json());
+            } else {
+                // First step — start fresh
+                res = await fetch('/api/pipeline/individual/run-step', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ run_id: '', step: step, url: this.ip_url, models: this.ip_models, custom_prompts: this.ip_prompts }),
+                }).then(r => r.json());
+            }
+            this.ip_runId = res.run_id;
+            this.ip_eventSource = this.connectSSE(res.run_id, 'ip');
+        },
+        canRunStep(idx) {
+            if (idx === 0) return !!this.ip_url.trim();
+            const depKeys = [[], ['site_text'], ['result_financial_text'], ['result_financial_json'], ['result_kpi_json'], ['result_kpi_values_clean'], ['company_name'], ['result_walkthetalk']];
+            if (!this.ip_results) return idx === 0;
+            return depKeys[idx].every(k => !!this.ip_results[k]);
+        },
+        async pollIndividualResults() {
+            if (!this.ip_runId) return;
+            const res = await this.fetchJSON(`/api/pipeline/status/${this.ip_runId}`);
+            if (res) { this.ip_results = res.results; this.ip_logs = res.logs || this.ip_logs; }
+        },
+        async resetIndividualPrompts() {
+            const d = await this.fetchJSON('/api/pipeline/prompts/individual/defaults');
+            if (d) { this.ip_prompts = {...d}; this.ip_promptDefaults = {...d}; }
+        },
+
+        // ── Cancel Pipeline ──
+        async cancelPipeline(runId) {
+            if (!runId) return;
+            await fetch(`/api/pipeline/cancel/${runId}`, { method: 'POST' });
+        },
+
+        // Keyboard shortcuts
+        handleKeyboard(e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            if (e.key === '1') this.activeModule = 'dashboard';
+            else if (e.key === '2') this.activeModule = 'sector';
+            else if (e.key === '3') this.activeModule = 'individual';
+            else if (e.key === '4') this.activeModule = 'sectorPipeline';
+            else if (e.key === '5') this.activeModule = 'individualPipeline';
+        },
+
+        // Init
+        async init() {
+            window.addEventListener('keydown', (e) => this.handleKeyboard(e));
+            await Promise.all([this.loadSectorData(), this.loadIndividualData()]);
+            this.loading.dashboard = false;
+            // Load default prompts for pipelines
+            this.resetSectorPrompts();
+            this.resetIndividualPrompts();
+            this.checkApiStatus();
+        }
+    }
+}
+</script>
+</body>
+</html>

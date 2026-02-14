@@ -1,3 +1,3 @@
 @echo off
-streamlit run "%~dp0app.py"
+streamlit run "%~dp0ScoreVisualApp.py"
 pause
