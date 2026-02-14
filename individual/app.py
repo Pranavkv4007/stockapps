@@ -718,15 +718,16 @@ with st.sidebar:
         for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini")]:
             try:
                 llm(test_sp, test_up, model_key)
-                st.session_state.api_status[model_label] = True
-            except Exception:
-                st.session_state.api_status[model_label] = False
+                st.session_state.api_status[model_label] = (True, "")
+            except Exception as e:
+                st.session_state.api_status[model_label] = (False, str(e))
+                add_log(f"API Status Check FAILED for {model_label}: {e}")
 
-    for model_label, ok in st.session_state.api_status.items():
+    for model_label, (ok, err) in st.session_state.api_status.items():
         if ok:
             st.success(f"{model_label}: Connected")
         else:
-            st.error(f"{model_label}: Failed")
+            st.error(f"{model_label}: Failed — {err}")
 
     st.markdown("---")
     st.markdown("### Model Selection")

@@ -496,37 +496,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    with st.expander("Edit Prompts", expanded=False):
-        prompt_tab1, prompt_tab2, prompt_tab3 = st.tabs(
-            ["Screener", "Score", "JSON"]
-        )
-        with prompt_tab1:
-            st.session_state.sp_screener = st.text_area(
-                "Screener System Prompt",
-                value=st.session_state.sp_screener,
-                height=200,
-                key="ta_sp_screener",
-            )
-        with prompt_tab2:
-            st.session_state.sp_score = st.text_area(
-                "Score System Prompt",
-                value=st.session_state.sp_score,
-                height=200,
-                key="ta_sp_score",
-            )
-        with prompt_tab3:
-            st.session_state.sp_json = st.text_area(
-                "JSON System Prompt",
-                value=st.session_state.sp_json,
-                height=200,
-                key="ta_sp_json",
-            )
-        if st.button("Reset Prompts"):
-            st.session_state.sp_screener = DEFAULT_SYSTEM_PROMPT_SCREENER
-            st.session_state.sp_score = DEFAULT_SYSTEM_PROMPT_SCORE
-            st.session_state.sp_json = DEFAULT_SYSTEM_PROMPT_JSON
-            st.rerun()
-
     col_run, col_reset = st.columns(2)
     with col_run:
         run_clicked = st.button(
@@ -545,13 +514,47 @@ with st.sidebar:
 
 st.title("Full Sector Screener Pipeline")
 
-# Info bar
+# Info bar — responsive layout for long titles
 if st.session_state.sector:
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Sector", st.session_state.sector)
-    col2.metric("Category", st.session_state.sector_name)
-    col3.metric("Sub-Category", st.session_state.sub_sector)
-    col4.metric("Total Companies", st.session_state.total_companies)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"**Sector:** {st.session_state.sector}")
+        st.markdown(f"**Category:** {st.session_state.sector_name}")
+    with col2:
+        st.markdown(f"**Sub-Category:** {st.session_state.sub_sector}")
+        st.markdown(f"**Total Companies:** {st.session_state.total_companies}")
+
+# Edit Prompts (main page expander)
+with st.expander("📝 Edit System Prompts", expanded=False):
+    prompt_tab1, prompt_tab2, prompt_tab3 = st.tabs(
+        ["Screener Extraction", "Score Calculation", "JSON Conversion"]
+    )
+    with prompt_tab1:
+        st.session_state.sp_screener = st.text_area(
+            "Screener System Prompt",
+            value=st.session_state.sp_screener,
+            height=250,
+            key="ta_sp_screener",
+        )
+    with prompt_tab2:
+        st.session_state.sp_score = st.text_area(
+            "Score System Prompt",
+            value=st.session_state.sp_score,
+            height=250,
+            key="ta_sp_score",
+        )
+    with prompt_tab3:
+        st.session_state.sp_json = st.text_area(
+            "JSON System Prompt",
+            value=st.session_state.sp_json,
+            height=250,
+            key="ta_sp_json",
+        )
+    if st.button("Reset Prompts to Defaults"):
+        st.session_state.sp_screener = DEFAULT_SYSTEM_PROMPT_SCREENER
+        st.session_state.sp_score = DEFAULT_SYSTEM_PROMPT_SCORE
+        st.session_state.sp_json = DEFAULT_SYSTEM_PROMPT_JSON
+        st.rerun()
 
 # Tabs for results
 tab_status, tab_scores, tab_companies, tab_logs = st.tabs(
