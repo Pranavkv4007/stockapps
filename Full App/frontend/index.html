@@ -856,13 +856,14 @@
                     </div>
                     <div class="table-container">
                         <table class="text-sm">
-                            <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2 text-left">Company</th><th class="px-4 py-2 text-right">Score</th><th class="px-4 py-2 text-left">Sector</th></tr></thead>
+                            <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-4 py-2 text-left">Company</th><th class="px-4 py-2 text-right">Score</th><th class="px-4 py-2 text-left">Sector</th><th class="px-4 py-2 text-left">URL</th></tr></thead>
                             <tbody>
                                 <template x-for="(r, i) in sp_results.score_data" :key="i">
                                     <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
                                         <td class="px-4 py-2" x-text="r.company"></td>
                                         <td class="px-4 py-2 text-right"><span class="px-2 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r.score)" x-text="r.score"></span></td>
                                         <td class="px-4 py-2 text-xs" x-text="r.Sector"></td>
+                                        <td class="px-4 py-2 text-xs"><a :href="r.url" target="_blank" class="text-blue-500 hover:underline truncate block max-w-[200px]" x-text="r.url"></a></td>
                                     </tr>
                                 </template>
                             </tbody>
