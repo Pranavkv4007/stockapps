@@ -4,8 +4,9 @@ Pipeline API endpoints — sector & individual pipelines with SSE streaming.
 
 import asyncio
 import json
+import math
 from fastapi import APIRouter, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -17,6 +18,19 @@ from backend.services import prompts
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 mgr = PipelineManager()
+
+
+def _sanitize(obj):
+    """Recursively replace NaN/Inf floats with None for JSON safety."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 
 # ── Request Models ──
@@ -117,7 +131,7 @@ async def stream_pipeline(run_id: str):
         while True:
             try:
                 event = await asyncio.wait_for(run._event_queue.get(), timeout=30.0)
-                data = json.dumps(event)
+                data = json.dumps(_sanitize(event))
                 yield f"event: {event['type']}\ndata: {data}\n\n"
 
                 if event["type"] in ("done", "error", "cancelled"):
@@ -151,7 +165,7 @@ async def get_pipeline_status(run_id: str):
     run = mgr.get_run(run_id)
     if not run:
         return {"error": "Run not found"}
-    return {
+    return JSONResponse(content=_sanitize({
         "run_id": run.run_id,
         "pipeline_type": run.pipeline_type,
         "status": run.status,
@@ -163,7 +177,7 @@ async def get_pipeline_status(run_id: str):
         "results": run.results,
         "error": run.error,
         "created_at": run.created_at,
-    }
+    }))
 
 
 @router.post("/cancel/{run_id}")
@@ -178,7 +192,7 @@ async def cancel_pipeline(run_id: str):
 @router.get("/runs")
 async def list_runs():
     """List all pipeline runs."""
-    return {"runs": mgr.list_runs()}
+    return JSONResponse(content=_sanitize({"runs": mgr.list_runs()}))
 
 
 # ── API Status ──

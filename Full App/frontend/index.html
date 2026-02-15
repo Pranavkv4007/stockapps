@@ -1303,23 +1303,28 @@ function app() {
         connectSSE(runId, target) {
             const es = new EventSource(`/api/pipeline/stream/${runId}`);
             const isIP = target === 'ip';
+            let sseErrorCount = 0;
 
             es.addEventListener('phase_start', (e) => {
                 const d = JSON.parse(e.data);
+                sseErrorCount = 0;
                 if (isIP) { this.ip_phase = d.data.phase; } else { this.sp_phase = d.data.phase; }
             });
             es.addEventListener('progress', (e) => {
                 const d = JSON.parse(e.data);
+                sseErrorCount = 0;
                 if (isIP) { this.ip_progress = d.data.progress; this.ip_progressText = d.data.text; }
                 else { this.sp_progress = d.data.progress; this.sp_progressText = d.data.text; }
             });
             es.addEventListener('log', (e) => {
                 const d = JSON.parse(e.data);
+                sseErrorCount = 0;
                 if (isIP) { this.ip_logs.push(d.data.message); this.$nextTick(() => { if(this.$refs.ipLogBox) this.$refs.ipLogBox.scrollTop = this.$refs.ipLogBox.scrollHeight; }); }
                 else { this.sp_logs.push(d.data.message); this.$nextTick(() => { if(this.$refs.spLogBox) this.$refs.spLogBox.scrollTop = this.$refs.spLogBox.scrollHeight; }); }
             });
             es.addEventListener('phase_complete', (e) => {
                 const d = JSON.parse(e.data);
+                sseErrorCount = 0;
                 if (isIP) { this.ip_phase = d.data.phase + 1; this.ip_stepStatus[d.data.phase] = 'done'; }
                 else { this.sp_phase = d.data.phase + 1; }
             });
@@ -1331,12 +1336,41 @@ function app() {
                 this.refreshSectorData();
                 this.refreshIndividualData();
             });
+            // Handle custom "error" events from the backend pipeline
             es.addEventListener('error', (e) => {
-                es.close();
-                if (isIP) { this.ip_running = false; this.ip_progressText = 'Error!'; }
-                else { this.sp_running = false; this.sp_progressText = 'Error!'; }
+                // Only handle if it has parseable data (backend-sent error)
+                if (e.data) {
+                    es.close();
+                    const d = JSON.parse(e.data);
+                    const msg = d.data?.message || 'Pipeline error';
+                    if (isIP) { this.ip_running = false; this.ip_progressText = msg; this.ip_logs.push('[ERROR] ' + msg); }
+                    else { this.sp_running = false; this.sp_progressText = msg; this.sp_logs.push('[ERROR] ' + msg); }
+                }
             });
-            es.onerror = () => { es.close(); if (isIP) this.ip_running = false; else this.sp_running = false; };
+            // Handle native EventSource connection errors (network issues, reconnects)
+            es.onerror = () => {
+                sseErrorCount++;
+                // EventSource auto-reconnects; only give up after repeated failures
+                if (sseErrorCount >= 3 || es.readyState === EventSource.CLOSED) {
+                    es.close();
+                    // Fall back to polling for status
+                    if (isIP && this.ip_running) {
+                        this.ip_progressText = 'Connection lost, checking status...';
+                        this.pollIndividualResults().then(() => {
+                            this.ip_running = false;
+                            if (this.ip_results) { this.ip_progress = 1; this.ip_progressText = 'Complete!'; }
+                            else { this.ip_progressText = 'Connection lost. Check status manually.'; }
+                        });
+                    } else if (!isIP && this.sp_running) {
+                        this.sp_progressText = 'Connection lost, checking status...';
+                        this.pollSectorResults().then(() => {
+                            this.sp_running = false;
+                            if (this.sp_results) { this.sp_progress = 1; this.sp_progressText = 'Complete!'; }
+                            else { this.sp_progressText = 'Connection lost. Check status manually.'; }
+                        });
+                    }
+                }
+            };
             return es;
         },
 

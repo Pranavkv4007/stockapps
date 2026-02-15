@@ -303,6 +303,10 @@ async def run_sector_pipeline(
                 score_df.to_csv(csv_full_path, index=False, encoding="utf-8-sig")
             log(f"Saved CSV: {csv_full_path}")
 
+        score_records = []
+        if score_df is not None:
+            score_records = json.loads(score_df.to_json(orient="records"))
+
         run.results = {
             "sector": sector,
             "sector_name": sector_name,
@@ -310,7 +314,7 @@ async def run_sector_pipeline(
             "total_companies": total_companies,
             "company_list": company_list,
             "final_results_json": final_results,
-            "score_data": score_df.to_dict(orient="records") if score_df is not None else [],
+            "score_data": score_records,
             "folder_path": folder_path,
         }
 
