@@ -2,10 +2,12 @@
 Sector API endpoints — /api/sector/*
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 import pandas as pd
+import os
 import io
+import shutil
 
 from backend.services.sector_service import (
     run_csv_combiner,
@@ -14,26 +16,43 @@ from backend.services.sector_service import (
     get_sector_data,
     get_data_freshness,
 )
+from backend.config import SECTOR_DIR
 
 router = APIRouter(prefix="/api/sector", tags=["sector"])
 
-# Cache dataframes in module-level variables (refreshable)
+# Cache dataframes with staleness detection
 _combined_df: pd.DataFrame | None = None
 _all_df: pd.DataFrame | None = None
+_last_mtime: float = 0.0
+
+
+def _get_dir_mtime() -> float:
+    """Get the latest modification time of any CSV file in the Sector directory tree."""
+    latest = 0.0
+    if os.path.isdir(SECTOR_DIR):
+        for root, _dirs, files in os.walk(SECTOR_DIR):
+            for f in files:
+                if f.endswith(".csv"):
+                    t = os.path.getmtime(os.path.join(root, f))
+                    if t > latest:
+                        latest = t
+    return latest
 
 
 def _ensure_loaded():
-    global _combined_df, _all_df
-    if _combined_df is None:
+    global _combined_df, _all_df, _last_mtime
+    current_mtime = _get_dir_mtime()
+    if _combined_df is None or current_mtime > _last_mtime:
         _combined_df = run_csv_combiner()
-    if _all_df is None:
         _all_df = load_all_sectors()
+        _last_mtime = current_mtime
 
 
 def _refresh():
-    global _combined_df, _all_df
+    global _combined_df, _all_df, _last_mtime
     _combined_df = run_csv_combiner()
     _all_df = load_all_sectors()
+    _last_mtime = _get_dir_mtime()
 
 
 def _clean_records(df: pd.DataFrame) -> list[dict]:
@@ -135,3 +154,118 @@ def refresh():
     """Refresh cached data."""
     _refresh()
     return {"status": "refreshed"}
+
+
+# ── File Manager endpoints ────────────────────────────────────────────────────
+
+def _scan_sector_folder(sector_name: str) -> dict | None:
+    """Scan a single sector folder and return file presence info."""
+    sector_path = os.path.join(SECTOR_DIR, sector_name)
+    if not os.path.isdir(sector_path):
+        return None
+    info: dict = {"companies": {}, "csv": False, "json": False, "progress": False}
+    for filename in sorted(os.listdir(sector_path)):
+        filepath = os.path.join(sector_path, filename)
+        if not os.path.isfile(filepath):
+            continue
+        if filename == "progress.json":
+            info["progress"] = True
+        elif filename.endswith(".csv"):
+            info["csv"] = True
+        elif filename.endswith(".json"):
+            info["json"] = True
+        elif filename.endswith("_Score.txt"):
+            company = filename[: -len("_Score.txt")]
+            info["companies"].setdefault(company, {"main": False, "score": False})
+            info["companies"][company]["score"] = True
+        elif filename.endswith(".txt"):
+            company = filename[: -len(".txt")]
+            info["companies"].setdefault(company, {"main": False, "score": False})
+            info["companies"][company]["main"] = True
+    return info
+
+
+@router.get("/files")
+def get_files():
+    """List all sector folders with file presence info."""
+    if not os.path.isdir(SECTOR_DIR):
+        return {"sectors": {}}
+    sectors = {}
+    for sector_name in sorted(os.listdir(SECTOR_DIR)):
+        info = _scan_sector_folder(sector_name)
+        if info is not None:
+            sectors[sector_name] = info
+    return {"sectors": sectors}
+
+
+@router.delete("/files/{sector_name}")
+def delete_sector_files(sector_name: str, types: str = Query("")):
+    """Delete sector-level files (types: csv, json, progress)."""
+    sector_path = os.path.join(SECTOR_DIR, sector_name)
+    if not os.path.isdir(sector_path):
+        raise HTTPException(status_code=404, detail="Sector not found")
+    type_list = [t.strip() for t in types.split(",") if t.strip()]
+    deleted, errors = [], []
+    for filename in os.listdir(sector_path):
+        filepath = os.path.join(sector_path, filename)
+        if not os.path.isfile(filepath):
+            continue
+        if "csv" in type_list and filename.endswith(".csv"):
+            try:
+                os.remove(filepath)
+                deleted.append(filename)
+            except Exception as e:
+                errors.append(str(e))
+        elif "json" in type_list and filename.endswith(".json") and filename != "progress.json":
+            try:
+                os.remove(filepath)
+                deleted.append(filename)
+            except Exception as e:
+                errors.append(str(e))
+        elif "progress" in type_list and filename == "progress.json":
+            try:
+                os.remove(filepath)
+                deleted.append(filename)
+            except Exception as e:
+                errors.append(str(e))
+    _refresh()
+    return {"deleted": deleted, "errors": errors}
+
+
+@router.delete("/folder/{sector_name}")
+def delete_sector_folder(sector_name: str, confirm: str = Query("")):
+    """Delete entire sector folder. Requires confirm=sector_name."""
+    if confirm != sector_name:
+        raise HTTPException(status_code=400, detail="Confirmation name does not match")
+    sector_path = os.path.join(SECTOR_DIR, sector_name)
+    if not os.path.isdir(sector_path):
+        raise HTTPException(status_code=404, detail="Sector not found")
+    try:
+        shutil.rmtree(sector_path)
+        _refresh()
+        return {"deleted": sector_name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/company/{sector_name}/{company}")
+def delete_company_files(sector_name: str, company: str, types: str = Query("")):
+    """Delete company files within a sector (types: main, score)."""
+    sector_path = os.path.join(SECTOR_DIR, sector_name)
+    if not os.path.isdir(sector_path):
+        raise HTTPException(status_code=404, detail="Sector not found")
+    type_list = [t.strip() for t in types.split(",") if t.strip()]
+    file_map = {
+        "main": os.path.join(sector_path, f"{company}.txt"),
+        "score": os.path.join(sector_path, f"{company}_Score.txt"),
+    }
+    deleted, errors = [], []
+    for t in type_list:
+        if t in file_map and os.path.exists(file_map[t]):
+            try:
+                os.remove(file_map[t])
+                deleted.append(os.path.basename(file_map[t]))
+            except Exception as e:
+                errors.append(str(e))
+    _refresh()
+    return {"deleted": deleted, "errors": errors}

@@ -12,6 +12,7 @@ import os
 import re
 import json
 import time
+import shutil
 import requests
 import pandas as pd
 from datetime import datetime
@@ -33,13 +34,15 @@ st.set_page_config(
 # Model constants
 OPENAI_MODEL = "gpt-4.1-mini-2025-04-14"
 GPT4O = "gpt-4o-mini-2024-07-18"
-GEMINI_MODEL = "gemini-3-pro-preview"
+GEMINI_MODEL = "Gemini 3.1 Pro Preview"
 
 # Base paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 SECTOR_DIR = os.path.join(PROJECT_ROOT, "Sector")
 os.makedirs(SECTOR_DIR, exist_ok=True)
+INDIVIDUAL_DIR = os.path.join(PROJECT_ROOT, "Individual_Stocks")
+os.makedirs(INDIVIDUAL_DIR, exist_ok=True)
 
 MODEL_OPTIONS = ["gemini", "openai", "gpt4o"]
 
@@ -238,6 +241,66 @@ def get_sector_names(market_links):
     elif len(names) == 1:
         return names[0], names[0]
     return "Unknown", "Unknown"
+
+
+def get_sector_files():
+    """Scan Sector directory and return file info per sector folder."""
+    if not os.path.exists(SECTOR_DIR):
+        return {}
+    sectors = {}
+    for sector_name in sorted(os.listdir(SECTOR_DIR)):
+        sector_path = os.path.join(SECTOR_DIR, sector_name)
+        if not os.path.isdir(sector_path):
+            continue
+        info = {
+            "path": sector_path,
+            "companies": {},
+            "csv": None,
+            "json": None,
+            "progress": None,
+        }
+        for filename in sorted(os.listdir(sector_path)):
+            filepath = os.path.join(sector_path, filename)
+            if filename == "progress.json":
+                info["progress"] = filepath
+            elif filename.endswith(".csv"):
+                info["csv"] = filepath
+            elif filename.endswith(".json"):
+                info["json"] = filepath
+            elif filename.endswith("_Score.txt"):
+                company = filename[: -len("_Score.txt")]
+                info["companies"].setdefault(company, {"main": None, "score": None})
+                info["companies"][company]["score"] = filepath
+            elif filename.endswith(".txt"):
+                company = filename[: -len(".txt")]
+                info["companies"].setdefault(company, {"main": None, "score": None})
+                info["companies"][company]["main"] = filepath
+        sectors[sector_name] = info
+    return sectors
+
+
+def get_individual_stock_files():
+    """Scan Individual_Stocks dir and return file info grouped by company name."""
+    if not os.path.exists(INDIVIDUAL_DIR):
+        return {}
+    companies = {}
+    for filename in sorted(os.listdir(INDIVIDUAL_DIR)):
+        if not filename.endswith(".txt"):
+            continue
+        filepath = os.path.join(INDIVIDUAL_DIR, filename)
+        if filename.endswith("_concall_score.txt"):
+            company = filename[: -len("_concall_score.txt")]
+            key = "concall_score"
+        elif filename.endswith("_concall.txt"):
+            company = filename[: -len("_concall.txt")]
+            key = "concall"
+        else:
+            company = filename[: -len(".txt")]
+            key = "main"
+        if company not in companies:
+            companies[company] = {"main": None, "concall": None, "concall_score": None}
+        companies[company][key] = filepath
+    return companies
 
 
 # ============================================================================
@@ -557,8 +620,8 @@ with st.expander("📝 Edit System Prompts", expanded=False):
         st.rerun()
 
 # Tabs for results
-tab_status, tab_scores, tab_companies, tab_logs = st.tabs(
-    ["📡 Execution Status", "📊 Final Scores", "🏢 Company Details", "📋 Logs"]
+tab_status, tab_scores, tab_companies, tab_individual, tab_sector_files, tab_logs = st.tabs(
+    ["📡 Execution Status", "📊 Final Scores", "🏢 Company Details", "🗂️ Individual Stocks", "📁 Sector Files", "📋 Logs"]
 )
 
 # ============================================================================
@@ -962,6 +1025,299 @@ with tab_companies:
                     st.table(metrics_df)
     else:
         st.info("Run the pipeline to see company details here.")
+
+with tab_individual:
+    st.markdown("### Individual Stocks File Manager")
+    st.markdown(f"**Directory:** `{INDIVIDUAL_DIR}`")
+
+    if st.button("🔄 Refresh File List", key="refresh_individual"):
+        st.rerun()
+
+    stock_files = get_individual_stock_files()
+
+    if not stock_files:
+        st.info("No files found in Individual_Stocks directory.")
+    else:
+        # Summary metrics
+        ind_total = len(stock_files)
+        ind_main = sum(1 for v in stock_files.values() if v["main"])
+        ind_concall = sum(1 for v in stock_files.values() if v["concall"])
+        ind_score = sum(1 for v in stock_files.values() if v["concall_score"])
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Companies", ind_total)
+        m2.metric("Analysis Files", ind_main)
+        m3.metric("Concall Files", ind_concall)
+        m4.metric("Score Files", ind_score)
+
+        st.markdown("---")
+
+        # Search / filter
+        search_term = st.text_input(
+            "Search companies", placeholder="Type to filter...", key="ind_search"
+        )
+        filtered = (
+            {k: v for k, v in stock_files.items() if search_term.lower() in k.lower()}
+            if search_term
+            else stock_files
+        )
+
+        # File status table
+        st.markdown(f"**Showing {len(filtered)} of {ind_total} companies**")
+        table_data = [
+            {
+                "Company": company,
+                "Analysis (.txt)": "✅" if files["main"] else "❌",
+                "Concall (_concall.txt)": "✅" if files["concall"] else "❌",
+                "Score (_concall_score.txt)": "✅" if files["concall_score"] else "❌",
+            }
+            for company, files in sorted(filtered.items())
+        ]
+        st.dataframe(
+            pd.DataFrame(table_data),
+            use_container_width=True,
+            height=min(len(table_data) * 38 + 40, 500),
+        )
+
+        st.markdown("---")
+        st.markdown("### Delete Files")
+
+        selected_company = st.selectbox(
+            "Select Company",
+            sorted(stock_files.keys()),
+            key="ind_select_company",
+        )
+
+        if selected_company:
+            files = stock_files[selected_company]
+
+            # Build options only for files that exist
+            option_map = {
+                "Analysis (.txt)": files["main"],
+                "Concall (_concall.txt)": files["concall"],
+                "Score (_concall_score.txt)": files["concall_score"],
+            }
+            available_options = [label for label, path in option_map.items() if path]
+
+            if not available_options:
+                st.warning("No files found for this company.")
+            else:
+                selected_to_delete = st.multiselect(
+                    "Select file types to delete",
+                    available_options,
+                    key="ind_files_to_delete",
+                )
+
+                if selected_to_delete:
+                    st.warning(
+                        f"About to delete **{len(selected_to_delete)}** file(s) for "
+                        f"**{selected_company}**:\n"
+                        + "\n".join(f"- {f}" for f in selected_to_delete)
+                    )
+                    if st.button("🗑️ Confirm Delete", type="primary", key="ind_confirm_delete"):
+                        deleted, errors = [], []
+                        for label in selected_to_delete:
+                            path = option_map[label]
+                            if path and os.path.exists(path):
+                                try:
+                                    os.remove(path)
+                                    deleted.append(label)
+                                except Exception as e:
+                                    errors.append(f"{label}: {e}")
+                        if deleted:
+                            st.success(f"Deleted: {', '.join(deleted)}")
+                        if errors:
+                            st.error(f"Errors: {'; '.join(errors)}")
+                        st.rerun()
+
+with tab_sector_files:
+    st.markdown("### Sector Files Manager")
+    st.markdown(f"**Directory:** `{SECTOR_DIR}`")
+
+    if st.button("🔄 Refresh Sector Files", key="refresh_sector_files"):
+        st.rerun()
+
+    sector_data = get_sector_files()
+
+    if not sector_data:
+        st.info("No sector folders found.")
+    else:
+        # Summary metrics
+        sf_total_sectors = len(sector_data)
+        sf_total_companies = sum(len(s["companies"]) for s in sector_data.values())
+        sf_total_main = sum(
+            sum(1 for c in s["companies"].values() if c["main"])
+            for s in sector_data.values()
+        )
+        sf_total_scores = sum(
+            sum(1 for c in s["companies"].values() if c["score"])
+            for s in sector_data.values()
+        )
+
+        sm1, sm2, sm3, sm4 = st.columns(4)
+        sm1.metric("Sectors", sf_total_sectors)
+        sm2.metric("Companies", sf_total_companies)
+        sm3.metric("Analysis Files", sf_total_main)
+        sm4.metric("Score Files", sf_total_scores)
+
+        st.markdown("---")
+
+        # Sector selector
+        selected_sector = st.selectbox(
+            "Select Sector", sorted(sector_data.keys()), key="sf_select_sector"
+        )
+
+        if selected_sector:
+            sinfo = sector_data[selected_sector]
+            st.markdown(f"#### {selected_sector}")
+
+            # ── Sector-level files ──
+            st.markdown("**Sector-level files:**")
+            sfc1, sfc2, sfc3 = st.columns(3)
+            sfc1.markdown(f"CSV: {'✅' if sinfo['csv'] else '❌'} `{os.path.basename(sinfo['csv']) if sinfo['csv'] else 'none'}`")
+            sfc2.markdown(f"JSON: {'✅' if sinfo['json'] else '❌'} `{os.path.basename(sinfo['json']) if sinfo['json'] else 'none'}`")
+            sfc3.markdown(f"Progress: {'✅' if sinfo['progress'] else '❌'}")
+
+            sector_file_map = {}
+            if sinfo["csv"]:
+                sector_file_map["CSV"] = sinfo["csv"]
+            if sinfo["json"]:
+                sector_file_map["JSON"] = sinfo["json"]
+            if sinfo["progress"]:
+                sector_file_map["Progress (progress.json)"] = sinfo["progress"]
+
+            if sector_file_map:
+                sf_sel_files = st.multiselect(
+                    "Delete sector-level files",
+                    list(sector_file_map.keys()),
+                    key="sf_sector_files_del",
+                )
+                if sf_sel_files:
+                    st.warning(
+                        f"About to delete **{len(sf_sel_files)}** sector file(s) for "
+                        f"**{selected_sector}**:\n"
+                        + "\n".join(f"- {f}" for f in sf_sel_files)
+                    )
+                    if st.button("🗑️ Confirm Delete Sector Files", type="primary", key="sf_confirm_sector_del"):
+                        deleted, errors = [], []
+                        for label in sf_sel_files:
+                            path = sector_file_map[label]
+                            if path and os.path.exists(path):
+                                try:
+                                    os.remove(path)
+                                    deleted.append(label)
+                                except Exception as e:
+                                    errors.append(f"{label}: {e}")
+                        if deleted:
+                            st.success(f"Deleted: {', '.join(deleted)}")
+                        if errors:
+                            st.error(f"Errors: {'; '.join(errors)}")
+                        st.rerun()
+
+            st.markdown("---")
+
+            # ── Delete entire sector folder ──
+            with st.expander("⚠️ Danger Zone — Delete Entire Sector Folder", expanded=False):
+                st.error(
+                    f"This will permanently delete the folder **{selected_sector}** "
+                    f"and ALL its contents ({len(sinfo['companies'])} companies, "
+                    f"all .txt, _Score.txt, .csv, .json files)."
+                )
+                confirm_text = st.text_input(
+                    f'Type **{selected_sector}** to confirm deletion',
+                    key="sf_delete_folder_confirm_text",
+                    placeholder=selected_sector,
+                )
+                if st.button("🗑️ Delete Entire Folder", type="primary", key="sf_delete_folder_btn"):
+                    if confirm_text.strip() == selected_sector:
+                        try:
+                            shutil.rmtree(sinfo["path"])
+                            st.success(f"Deleted folder: {sinfo['path']}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error deleting folder: {e}")
+                    else:
+                        st.warning("Sector name does not match. Deletion cancelled.")
+
+            st.markdown("---")
+
+            # ── Company files ──
+            companies = sinfo["companies"]
+            if not companies:
+                st.info("No company files in this sector.")
+            else:
+                sf_search = st.text_input(
+                    "Search companies in sector",
+                    placeholder="Type to filter...",
+                    key="sf_search",
+                )
+                filtered_co = (
+                    {k: v for k, v in companies.items() if sf_search.lower() in k.lower()}
+                    if sf_search
+                    else companies
+                )
+
+                st.markdown(f"**{len(filtered_co)} of {len(companies)} companies shown**")
+                co_table = [
+                    {
+                        "Company": company,
+                        "Analysis (.txt)": "✅" if files["main"] else "❌",
+                        "Score (_Score.txt)": "✅" if files["score"] else "❌",
+                    }
+                    for company, files in sorted(filtered_co.items())
+                ]
+                st.dataframe(
+                    pd.DataFrame(co_table),
+                    use_container_width=True,
+                    height=min(len(co_table) * 38 + 40, 500),
+                )
+
+                st.markdown("---")
+                st.markdown("### Delete Company Files")
+
+                selected_co = st.selectbox(
+                    "Select Company",
+                    sorted(companies.keys()),
+                    key="sf_select_company",
+                )
+
+                if selected_co:
+                    co_files = companies[selected_co]
+                    co_option_map = {
+                        "Analysis (.txt)": co_files["main"],
+                        "Score (_Score.txt)": co_files["score"],
+                    }
+                    co_available = [label for label, path in co_option_map.items() if path]
+
+                    if not co_available:
+                        st.warning("No files found for this company.")
+                    else:
+                        co_selected = st.multiselect(
+                            "Select file types to delete",
+                            co_available,
+                            key="sf_co_files_del",
+                        )
+                        if co_selected:
+                            st.warning(
+                                f"About to delete **{len(co_selected)}** file(s) for "
+                                f"**{selected_co}** in **{selected_sector}**:\n"
+                                + "\n".join(f"- {f}" for f in co_selected)
+                            )
+                            if st.button("🗑️ Confirm Delete Company Files", type="primary", key="sf_confirm_co_del"):
+                                deleted, errors = [], []
+                                for label in co_selected:
+                                    path = co_option_map[label]
+                                    if path and os.path.exists(path):
+                                        try:
+                                            os.remove(path)
+                                            deleted.append(label)
+                                        except Exception as e:
+                                            errors.append(f"{label}: {e}")
+                                if deleted:
+                                    st.success(f"Deleted: {', '.join(deleted)}")
+                                if errors:
+                                    st.error(f"Errors: {'; '.join(errors)}")
+                                st.rerun()
 
 with tab_logs:
     if st.session_state.logs:

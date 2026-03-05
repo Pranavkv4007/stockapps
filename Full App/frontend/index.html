@@ -61,6 +61,9 @@
                 <button @click="activeModule = 'individualPipeline'" :class="activeModule === 'individualPipeline' ? 'bg-excellent text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
                     Individual Pipeline
                 </button>
+                <button @click="activeModule = 'fileManager'; loadIndividualFiles(); loadSectorFiles()" :class="activeModule === 'fileManager' ? 'bg-excellent text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'" class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors">
+                    File Manager
+                </button>
             </div>
             <div class="flex items-center gap-3">
                 <!-- Global Search -->
@@ -158,6 +161,16 @@
                 <span class="text-xs" x-text="indTopN"></span>
             </div>
             <button @click="refreshIndividualData()" class="w-full px-3 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800 transition-colors">Refresh Data</button>
+        </div>
+
+        <!-- File Manager Sidebar -->
+        <div x-show="activeModule === 'fileManager'" x-cloak>
+            <h3 class="font-semibold mb-2 text-sm">File Manager</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">Browse and delete analysis files for individual stocks and sectors.</p>
+            <div class="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                <p>Individual: <span x-text="Object.keys(fm_indFiles).length" class="font-medium text-gray-700 dark:text-gray-300"></span> companies</p>
+                <p>Sectors: <span x-text="Object.keys(fm_sectorFiles).length" class="font-medium text-gray-700 dark:text-gray-300"></span></p>
+            </div>
         </div>
 
         <!-- Dashboard Sidebar -->
@@ -983,6 +996,264 @@
             </template>
         </div>
 
+        <!-- ==================== FILE MANAGER ==================== -->
+        <div x-show="activeModule === 'fileManager'" x-cloak>
+            <h2 class="text-2xl font-bold mb-4">File Manager</h2>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-5 border-b dark:border-gray-600">
+                <button @click="fm_tab = 'individual'" :class="fm_tab === 'individual' ? 'border-b-2 border-excellent text-excellent font-semibold' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="px-4 py-2 text-sm">Individual Stocks</button>
+                <button @click="fm_tab = 'sector'" :class="fm_tab === 'sector' ? 'border-b-2 border-excellent text-excellent font-semibold' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="px-4 py-2 text-sm">Sector Files</button>
+            </div>
+
+            <!-- ── Individual Files Tab ── -->
+            <div x-show="fm_tab === 'individual'">
+                <div class="flex items-center gap-3 mb-4">
+                    <button @click="loadIndividualFiles()" class="px-3 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800">Refresh</button>
+                </div>
+
+                <template x-if="Object.keys(fm_indFiles).length > 0">
+                    <div>
+                        <!-- Summary -->
+                        <div class="grid grid-cols-4 gap-4 mb-5">
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Companies</p>
+                                <p class="text-2xl font-bold text-excellent" x-text="Object.keys(fm_indFiles).length"></p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Analysis Files</p>
+                                <p class="text-2xl font-bold" x-text="Object.values(fm_indFiles).filter(f => f.main).length"></p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Concall Files</p>
+                                <p class="text-2xl font-bold" x-text="Object.values(fm_indFiles).filter(f => f.concall).length"></p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Score Files</p>
+                                <p class="text-2xl font-bold" x-text="Object.values(fm_indFiles).filter(f => f.concall_score).length"></p>
+                            </div>
+                        </div>
+
+                        <!-- Search + Table -->
+                        <input type="text" x-model="fm_indSearch" placeholder="Search companies..." class="w-full px-3 py-1.5 text-sm border dark:border-gray-600 rounded mb-3 bg-gray-50 dark:bg-gray-700">
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-auto mb-5" style="max-height:280px">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0 text-xs">
+                                    <tr>
+                                        <th class="text-left px-3 py-2">Company</th>
+                                        <th class="text-center px-3 py-2">Analysis (.txt)</th>
+                                        <th class="text-center px-3 py-2">Concall (_concall.txt)</th>
+                                        <th class="text-center px-3 py-2">Score (_concall_score.txt)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="[company, files] in Object.entries(fm_indFiles).filter(([k]) => !fm_indSearch || k.toLowerCase().includes(fm_indSearch.toLowerCase())).sort(([a],[b]) => a.localeCompare(b))" :key="company">
+                                        <tr class="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750">
+                                            <td class="px-3 py-1.5 font-medium" x-text="company"></td>
+                                            <td class="text-center px-3 py-1.5" x-text="files.main ? '✅' : '❌'"></td>
+                                            <td class="text-center px-3 py-1.5" x-text="files.concall ? '✅' : '❌'"></td>
+                                            <td class="text-center px-3 py-1.5" x-text="files.concall_score ? '✅' : '❌'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Delete panel -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                            <h3 class="font-semibold mb-3">Delete Files</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs font-medium">Select Company</label>
+                                    <select x-model="fm_indSelectedCompany" @change="fm_indSelectedTypes = []; fm_indStatus = null" class="w-full mt-1 px-2 py-1.5 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                                        <option value="">— select —</option>
+                                        <template x-for="company in Object.keys(fm_indFiles).sort()" :key="company">
+                                            <option :value="company" x-text="company"></option>
+                                        </template>
+                                    </select>
+                                </div>
+                                <div x-show="fm_indSelectedCompany">
+                                    <label class="text-xs font-medium">Select File Types to Delete</label>
+                                    <div class="mt-1 space-y-1.5">
+                                        <template x-for="[key, label] in [['main','Analysis (.txt)'],['concall','Concall (_concall.txt)'],['concall_score','Score (_concall_score.txt)']]" :key="key">
+                                            <label class="flex items-center gap-2 text-sm" x-show="fm_indFiles[fm_indSelectedCompany]?.[key]">
+                                                <input type="checkbox" :value="key" x-model="fm_indSelectedTypes"> <span x-text="label"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                            <template x-if="fm_indSelectedTypes.length > 0">
+                                <div class="mt-3">
+                                    <p class="text-sm text-yellow-600 dark:text-yellow-400 mb-2" x-text="'About to delete ' + fm_indSelectedTypes.length + ' file(s) for ' + fm_indSelectedCompany"></p>
+                                    <button @click="deleteIndividualFiles()" class="px-4 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700">Delete Selected</button>
+                                </div>
+                            </template>
+                            <template x-if="fm_indStatus">
+                                <div class="mt-3 text-sm">
+                                    <p x-show="fm_indStatus.deleted?.length" class="text-green-600 dark:text-green-400" x-text="'Deleted: ' + fm_indStatus.deleted?.join(', ')"></p>
+                                    <p x-show="fm_indStatus.errors?.length" class="text-red-600 dark:text-red-400" x-text="'Errors: ' + fm_indStatus.errors?.join('; ')"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="Object.keys(fm_indFiles).length === 0">
+                    <p class="text-gray-500 text-sm">No individual stock files found. <button @click="loadIndividualFiles()" class="text-excellent hover:underline">Load files</button></p>
+                </template>
+            </div>
+
+            <!-- ── Sector Files Tab ── -->
+            <div x-show="fm_tab === 'sector'">
+                <div class="flex items-center gap-3 mb-4">
+                    <button @click="loadSectorFiles()" class="px-3 py-1.5 bg-excellent text-white text-sm rounded hover:bg-green-800">Refresh</button>
+                </div>
+
+                <template x-if="Object.keys(fm_sectorFiles).length > 0">
+                    <div>
+                        <!-- Summary -->
+                        <div class="grid grid-cols-4 gap-4 mb-5">
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Sectors</p>
+                                <p class="text-2xl font-bold text-excellent" x-text="Object.keys(fm_sectorFiles).length"></p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Companies</p>
+                                <p class="text-2xl font-bold" x-text="Object.values(fm_sectorFiles).reduce((t,s) => t + Object.keys(s.companies).length, 0)"></p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Analysis Files</p>
+                                <p class="text-2xl font-bold" x-text="Object.values(fm_sectorFiles).reduce((t,s) => t + Object.values(s.companies).filter(c => c.main).length, 0)"></p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow text-center">
+                                <p class="text-xs text-gray-500">Score Files</p>
+                                <p class="text-2xl font-bold" x-text="Object.values(fm_sectorFiles).reduce((t,s) => t + Object.values(s.companies).filter(c => c.score).length, 0)"></p>
+                            </div>
+                        </div>
+
+                        <!-- Sector selector -->
+                        <div class="mb-5">
+                            <label class="text-xs font-medium">Select Sector</label>
+                            <select x-model="fm_selectedSector" @change="fm_sfSelectedTypes = []; fm_sfCoSelectedCompany = ''; fm_sfCoSelectedTypes = []; fm_sfConfirmText = ''; fm_sfStatus = null" class="w-full mt-1 px-2 py-1.5 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                                <option value="">— select —</option>
+                                <template x-for="sector in Object.keys(fm_sectorFiles).sort()" :key="sector">
+                                    <option :value="sector" x-text="sector"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <template x-if="fm_selectedSector && fm_sectorFiles[fm_selectedSector]">
+                            <div class="space-y-4">
+                                <!-- Sector-level files -->
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                                    <h3 class="font-semibold mb-3">Sector-Level Files</h3>
+                                    <div class="flex gap-6 mb-3 text-sm">
+                                        <span x-text="'CSV: ' + (fm_sectorFiles[fm_selectedSector].csv ? '✅' : '❌')"></span>
+                                        <span x-text="'JSON: ' + (fm_sectorFiles[fm_selectedSector].json ? '✅' : '❌')"></span>
+                                        <span x-text="'Progress: ' + (fm_sectorFiles[fm_selectedSector].progress ? '✅' : '❌')"></span>
+                                    </div>
+                                    <div class="flex gap-5 flex-wrap mb-3">
+                                        <label class="flex items-center gap-2 text-sm" x-show="fm_sectorFiles[fm_selectedSector].csv">
+                                            <input type="checkbox" value="csv" x-model="fm_sfSelectedTypes"> CSV
+                                        </label>
+                                        <label class="flex items-center gap-2 text-sm" x-show="fm_sectorFiles[fm_selectedSector].json">
+                                            <input type="checkbox" value="json" x-model="fm_sfSelectedTypes"> JSON
+                                        </label>
+                                        <label class="flex items-center gap-2 text-sm" x-show="fm_sectorFiles[fm_selectedSector].progress">
+                                            <input type="checkbox" value="progress" x-model="fm_sfSelectedTypes"> Progress (progress.json)
+                                        </label>
+                                    </div>
+                                    <template x-if="fm_sfSelectedTypes.length > 0">
+                                        <div>
+                                            <p class="text-sm text-yellow-600 dark:text-yellow-400 mb-2" x-text="'Delete ' + fm_sfSelectedTypes.join(', ') + ' from ' + fm_selectedSector + '?'"></p>
+                                            <button @click="deleteSectorFiles()" class="px-4 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700">Delete Selected</button>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Danger Zone -->
+                                <details class="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                                    <summary class="text-sm font-semibold text-red-700 dark:text-red-400 cursor-pointer">⚠️ Danger Zone — Delete Entire Sector Folder</summary>
+                                    <div class="mt-3">
+                                        <p class="text-sm text-red-600 dark:text-red-400 mb-3" x-text="'This will permanently delete the folder &quot;' + fm_selectedSector + '&quot; and ALL its contents.'"></p>
+                                        <label class="text-xs font-medium" x-text="'Type &quot;' + fm_selectedSector + '&quot; to confirm'"></label>
+                                        <input type="text" x-model="fm_sfConfirmText" :placeholder="fm_selectedSector" class="w-full mt-1 px-2 py-1.5 text-sm border border-red-300 dark:border-red-700 rounded bg-white dark:bg-gray-800">
+                                        <button @click="deleteSectorFolder()" :disabled="fm_sfConfirmText !== fm_selectedSector" class="mt-2 px-4 py-1.5 bg-red-700 text-white text-sm rounded hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed">Delete Entire Folder</button>
+                                    </div>
+                                </details>
+
+                                <!-- Company files -->
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                                    <h3 class="font-semibold mb-3">Company Files</h3>
+                                    <div class="overflow-auto mb-4" style="max-height:260px">
+                                        <table class="w-full text-sm">
+                                            <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0 text-xs">
+                                                <tr>
+                                                    <th class="text-left px-3 py-2">Company</th>
+                                                    <th class="text-center px-3 py-2">Analysis (.txt)</th>
+                                                    <th class="text-center px-3 py-2">Score (_Score.txt)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="[co, files] in Object.entries(fm_sectorFiles[fm_selectedSector].companies).sort(([a],[b]) => a.localeCompare(b))" :key="co">
+                                                    <tr class="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750">
+                                                        <td class="px-3 py-1.5 font-medium" x-text="co"></td>
+                                                        <td class="text-center px-3 py-1.5" x-text="files.main ? '✅' : '❌'"></td>
+                                                        <td class="text-center px-3 py-1.5" x-text="files.score ? '✅' : '❌'"></td>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <h4 class="font-medium text-sm mb-2">Delete Company Files</h4>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs font-medium">Select Company</label>
+                                            <select x-model="fm_sfCoSelectedCompany" @change="fm_sfCoSelectedTypes = []" class="w-full mt-1 px-2 py-1.5 text-sm border dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700">
+                                                <option value="">— select —</option>
+                                                <template x-for="co in Object.keys(fm_sectorFiles[fm_selectedSector].companies).sort()" :key="co">
+                                                    <option :value="co" x-text="co"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+                                        <div x-show="fm_sfCoSelectedCompany">
+                                            <label class="text-xs font-medium">Select File Types</label>
+                                            <div class="mt-1 space-y-1.5">
+                                                <label class="flex items-center gap-2 text-sm" x-show="fm_sectorFiles[fm_selectedSector]?.companies[fm_sfCoSelectedCompany]?.main">
+                                                    <input type="checkbox" value="main" x-model="fm_sfCoSelectedTypes"> Analysis (.txt)
+                                                </label>
+                                                <label class="flex items-center gap-2 text-sm" x-show="fm_sectorFiles[fm_selectedSector]?.companies[fm_sfCoSelectedCompany]?.score">
+                                                    <input type="checkbox" value="score" x-model="fm_sfCoSelectedTypes"> Score (_Score.txt)
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <template x-if="fm_sfCoSelectedTypes.length > 0">
+                                        <div class="mt-3">
+                                            <p class="text-sm text-yellow-600 dark:text-yellow-400 mb-2" x-text="'Delete ' + fm_sfCoSelectedTypes.length + ' file(s) for ' + fm_sfCoSelectedCompany + ' in ' + fm_selectedSector + '?'"></p>
+                                            <button @click="deleteCompanyFiles()" class="px-4 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700">Delete Selected</button>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Status messages -->
+                                <template x-if="fm_sfStatus">
+                                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-3 text-sm">
+                                        <p x-show="fm_sfStatus.deleted?.length" class="text-green-600 dark:text-green-400" x-text="'Deleted: ' + fm_sfStatus.deleted?.join(', ')"></p>
+                                        <p x-show="fm_sfStatus.errors?.length" class="text-red-600 dark:text-red-400" x-text="'Errors: ' + fm_sfStatus.errors?.join('; ')"></p>
+                                        <p x-show="fm_sfStatus.deleted_sector" class="text-green-600 dark:text-green-400" x-text="'Deleted folder: ' + fm_sfStatus.deleted_sector"></p>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="Object.keys(fm_sectorFiles).length === 0">
+                    <p class="text-gray-500 text-sm">No sector files found. <button @click="loadSectorFiles()" class="text-excellent hover:underline">Load files</button></p>
+                </template>
+            </div>
+        </div>
+
     </main>
 </div>
 
@@ -1042,6 +1313,21 @@ function app() {
         sp_logs: [],
         sp_results: null,
         sp_eventSource: null,
+
+        // File Manager state
+        fm_tab: 'individual',
+        fm_indFiles: {},
+        fm_indSearch: '',
+        fm_indSelectedCompany: '',
+        fm_indSelectedTypes: [],
+        fm_indStatus: null,
+        fm_sectorFiles: {},
+        fm_selectedSector: '',
+        fm_sfSelectedTypes: [],
+        fm_sfConfirmText: '',
+        fm_sfCoSelectedCompany: '',
+        fm_sfCoSelectedTypes: [],
+        fm_sfStatus: null,
 
         // Individual Pipeline state
         ip_url: '',
@@ -1446,6 +1732,64 @@ function app() {
             if (d) { this.ip_prompts = {...d}; this.ip_promptDefaults = {...d}; }
         },
 
+        // ── File Manager ──
+        async loadIndividualFiles() {
+            const res = await this.fetchJSON('/api/individual/files');
+            this.fm_indFiles = res?.companies || {};
+            this.fm_indSelectedCompany = '';
+            this.fm_indSelectedTypes = [];
+            this.fm_indStatus = null;
+        },
+        async deleteIndividualFiles() {
+            if (!this.fm_indSelectedCompany || !this.fm_indSelectedTypes.length) return;
+            const types = this.fm_indSelectedTypes.join(',');
+            const res = await fetch(`/api/individual/files/${encodeURIComponent(this.fm_indSelectedCompany)}?types=${types}`, { method: 'DELETE' }).then(r => r.json());
+            this.fm_indStatus = res;
+            this.fm_indSelectedTypes = [];
+            if (res.deleted?.length) await this.loadIndividualFiles();
+        },
+        async loadSectorFiles() {
+            const res = await this.fetchJSON('/api/sector/files');
+            this.fm_sectorFiles = res?.sectors || {};
+            this.fm_selectedSector = '';
+            this.fm_sfSelectedTypes = [];
+            this.fm_sfConfirmText = '';
+            this.fm_sfCoSelectedCompany = '';
+            this.fm_sfCoSelectedTypes = [];
+            this.fm_sfStatus = null;
+        },
+        async deleteSectorFiles() {
+            if (!this.fm_selectedSector || !this.fm_sfSelectedTypes.length) return;
+            const types = this.fm_sfSelectedTypes.join(',');
+            const res = await fetch(`/api/sector/files/${encodeURIComponent(this.fm_selectedSector)}?types=${types}`, { method: 'DELETE' }).then(r => r.json());
+            this.fm_sfStatus = res;
+            this.fm_sfSelectedTypes = [];
+            const prev = this.fm_selectedSector;
+            await this.loadSectorFiles();
+            if (this.fm_sectorFiles[prev]) this.fm_selectedSector = prev;
+        },
+        async deleteSectorFolder() {
+            if (!this.fm_selectedSector || this.fm_sfConfirmText !== this.fm_selectedSector) return;
+            const res = await fetch(`/api/sector/folder/${encodeURIComponent(this.fm_selectedSector)}?confirm=${encodeURIComponent(this.fm_sfConfirmText)}`, { method: 'DELETE' }).then(r => r.json());
+            if (res.deleted) {
+                this.fm_sfStatus = { deleted_sector: res.deleted };
+                await this.loadSectorFiles();
+                this.refreshSectorData();
+            } else {
+                this.fm_sfStatus = { errors: [res.detail || 'Unknown error'] };
+            }
+        },
+        async deleteCompanyFiles() {
+            if (!this.fm_selectedSector || !this.fm_sfCoSelectedCompany || !this.fm_sfCoSelectedTypes.length) return;
+            const types = this.fm_sfCoSelectedTypes.join(',');
+            const res = await fetch(`/api/sector/company/${encodeURIComponent(this.fm_selectedSector)}/${encodeURIComponent(this.fm_sfCoSelectedCompany)}?types=${types}`, { method: 'DELETE' }).then(r => r.json());
+            this.fm_sfStatus = res;
+            this.fm_sfCoSelectedTypes = [];
+            const prevSector = this.fm_selectedSector;
+            await this.loadSectorFiles();
+            if (this.fm_sectorFiles[prevSector]) this.fm_selectedSector = prevSector;
+        },
+
         // ── Cancel Pipeline ──
         async cancelPipeline(runId) {
             if (!runId) return;
@@ -1460,6 +1804,7 @@ function app() {
             else if (e.key === '3') this.activeModule = 'individual';
             else if (e.key === '4') this.activeModule = 'sectorPipeline';
             else if (e.key === '5') this.activeModule = 'individualPipeline';
+            else if (e.key === '6') { this.activeModule = 'fileManager'; this.loadIndividualFiles(); this.loadSectorFiles(); }
         },
 
         // Init

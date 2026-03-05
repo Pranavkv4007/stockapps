@@ -251,6 +251,16 @@ filtered = valid[
 # ============================================================================
 
 
+def read_file_content(company, suffix=""):
+    """Read a file from INDIVIDUAL_DIR. suffix examples: '', '_concall', '_concall_score'."""
+    fname = f"{company}{suffix}.txt"
+    fpath = os.path.join(INDIVIDUAL_DIR, fname)
+    if os.path.isfile(fpath):
+        with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+    return None
+
+
 def score_color(val):
     try:
         val = float(val)
@@ -493,6 +503,55 @@ with tab_leaderboard:
             score_color, subset=score_cols_present
         )
         st.dataframe(styled_lb, use_container_width=True, hide_index=True)
+
+        # Inline file viewer
+        st.markdown("---")
+        st.subheader("View Analysis Files")
+        company_list = top_display["Company"].tolist()
+        selected_company = st.selectbox("Select a company", company_list, key="lb_file_viewer")
+
+        _file_viewer_css = """
+        <style>
+        .file-viewer {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            padding: 12px;
+            border-radius: 6px;
+            height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        </style>
+        """
+        st.markdown(_file_viewer_css, unsafe_allow_html=True)
+
+        import html as _html
+        col_fin, col_con, col_cred = st.columns(3)
+        with col_fin:
+            st.markdown("**Financial Analysis**")
+            content = read_file_content(selected_company)
+            if content:
+                st.markdown(f'<div class="file-viewer">{_html.escape(content)}</div>', unsafe_allow_html=True)
+            else:
+                st.info("File not found")
+        with col_con:
+            st.markdown("**Concall (Walk the Talk)**")
+            content = read_file_content(selected_company, "_concall")
+            if content:
+                st.markdown(f'<div class="file-viewer">{_html.escape(content)}</div>', unsafe_allow_html=True)
+            else:
+                st.info("File not found")
+        with col_cred:
+            st.markdown("**Credibility Score**")
+            content = read_file_content(selected_company, "_concall_score")
+            if content:
+                st.markdown(f'<div class="file-viewer">{_html.escape(content)}</div>', unsafe_allow_html=True)
+            else:
+                st.info("File not found")
 
         # Companies missing one of the scores
         missing = df[df["Combined Score"].isna()]

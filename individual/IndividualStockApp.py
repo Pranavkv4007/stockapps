@@ -688,6 +688,10 @@ DEFAULTS = {
     "current_step": -1,
     "step_by_step": False,
     "run_step": -1,
+    # Manual transcript scoring
+    "uploaded_transcript": None,
+    "manual_concall_score": None,
+    "model_manual_concall": "openai",
 }
 
 for key, val in DEFAULTS.items():
@@ -1164,11 +1168,12 @@ if run_clicked and not st.session_state.step_by_step:
 # Section 7 - Results Display
 # ============================================================================
 
-tab_financial, tab_walkthetalk, tab_score, tab_intermediate, tab_logs = st.tabs(
+tab_financial, tab_walkthetalk, tab_score, tab_transcript, tab_intermediate, tab_logs = st.tabs(
     [
         "📈 Financial Analysis",
         "🗣 Walk the Talk",
         "📊 Concall Score",
+        "📄 Transcript Score",
         "🔧 Intermediate Data",
         "📋 Logs",
     ]
@@ -1191,6 +1196,89 @@ with tab_score:
         st.markdown(st.session_state.result_concall_score)
     else:
         st.info("Run the pipeline to see the Concall Credibility Score.")
+
+with tab_transcript:
+    st.markdown("### Manual Concall Transcript Scoring (RAG)")
+    st.caption("Relevant sections are retrieved via RAG and sent to the LLM for credibility scoring.")
+
+    TRANSCRIPTS_DIR = os.path.join(BASE_DIR, "transcripts")
+    os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
+
+    # Scan the transcripts/ folder for .txt and .pdf files
+    folder_files = sorted(
+        [f for f in os.listdir(TRANSCRIPTS_DIR) if f.lower().endswith((".txt", ".pdf"))]
+    )
+    folder_paths = [os.path.join(TRANSCRIPTS_DIR, f) for f in folder_files]
+
+    col_folder_info, col_refresh = st.columns([4, 1])
+    with col_refresh:
+        if st.button("Refresh", key="refresh_transcripts", use_container_width=True):
+            st.rerun()
+    with col_folder_info:
+        if folder_files:
+            st.success(f"Found {len(folder_files)} file(s) in `individual/transcripts/`:")
+            for fname in folder_files:
+                st.markdown(f"- `{fname}`")
+        else:
+            st.info(
+                "Place concall transcript files (`.txt` or `.pdf`) in "
+                f"`individual/transcripts/` and click **Refresh**."
+            )
+
+    uploaded_files = st.file_uploader(
+        "Or upload additional transcript(s)",
+        type=["txt", "pdf"],
+        accept_multiple_files=True,
+        key="transcript_uploader",
+    )
+
+    has_files = bool(folder_files) or bool(uploaded_files)
+
+    col_tc1, col_tc2 = st.columns(2)
+    with col_tc1:
+        transcript_company = st.text_input(
+            "Company Name",
+            value=st.session_state.get("company_name", ""),
+            key="transcript_company_name",
+        )
+    with col_tc2:
+        transcript_model = st.selectbox(
+            "Model for scoring",
+            MODEL_OPTIONS,
+            index=MODEL_OPTIONS.index(st.session_state.model_manual_concall),
+            key="transcript_model_select",
+        )
+
+    if st.button("Score Transcript", disabled=not has_files):
+        from transcript_scorer import score_transcript
+
+        company = transcript_company.strip() or "Unknown Company"
+        st.session_state.model_manual_concall = transcript_model
+        openai_api_key = os.getenv("OPENAI_API_KEY", "")
+
+        if not openai_api_key:
+            st.error("OPENAI_API_KEY is required for RAG embeddings.")
+        else:
+            with st.spinner(f"RAG retrieval & scoring for {company}..."):
+                try:
+                    result = score_transcript(
+                        uploaded_files=uploaded_files or [],
+                        company_name=company,
+                        model_name=transcript_model,
+                        llm_fn=llm,
+                        system_prompt=st.session_state.sp_concall_score,
+                        openai_api_key=openai_api_key,
+                        file_paths=folder_paths if folder_files else None,
+                    )
+                    st.session_state.manual_concall_score = result
+                except Exception as e:
+                    st.error(f"Transcript scoring failed: {e}")
+
+    if st.session_state.manual_concall_score:
+        st.markdown("---")
+        st.markdown(st.session_state.manual_concall_score)
+    elif not has_files:
+        st.info("Place transcript files in `individual/transcripts/` or upload above to get started.")
 
 with tab_intermediate:
     st.markdown("### Step 1: Scraped Financial Text")
