@@ -7,11 +7,12 @@ import os
 import re
 import json
 
-from backend.config import OPENAI_MODEL, GPT4O, GEMINI_MODEL
+from backend.config import OPENAI_MODEL, GPT4O, GEMINI_MODEL, CLAUDE_HAIKU, CLAUDE_SONNET, CLAUDE_OPUS
 
 # Lazy singletons
 _openai_client = None
 _gemini_client = None
+_claude_client = None
 
 
 def get_openai_client():
@@ -34,6 +35,17 @@ def get_gemini_client():
         from google import genai
         _gemini_client = genai.Client(api_key=api_key)
     return _gemini_client
+
+
+def get_claude_client():
+    global _claude_client
+    if _claude_client is None:
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            return None
+        import anthropic
+        _claude_client = anthropic.Anthropic(api_key=api_key)
+    return _claude_client
 
 
 def build_prompt(system_prompt, user_prompt, model_name):
@@ -77,6 +89,22 @@ def llm(system_prompt, user_prompt, model_name):
                 model=GPT4O, messages=prompts
             )
             return response.choices[0].message.content
+        case "claude-haiku" | "claude-sonnet" | "claude-opus":
+            claude_client = get_claude_client()
+            if claude_client is None:
+                raise ValueError("ANTHROPIC_API_KEY is not set.")
+            claude_model = {
+                "claude-haiku": CLAUDE_HAIKU,
+                "claude-sonnet": CLAUDE_SONNET,
+                "claude-opus": CLAUDE_OPUS,
+            }[model_name]
+            response = claude_client.messages.create(
+                model=claude_model,
+                max_tokens=8096,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            return response.content[0].text
         case _:
             return "Unknown model"
 
@@ -158,7 +186,7 @@ def check_api_status():
     test_sp = "You are an AI assistant"
     test_up = "Respond with your model name only"
     results = {}
-    for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini")]:
+    for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini"), ("Claude Haiku", "claude-haiku"), ("Claude Sonnet", "claude-sonnet"), ("Claude Opus", "claude-opus")]:
         try:
             llm(test_sp, test_up, model_key)
             results[model_label] = {"ok": True, "error": None}

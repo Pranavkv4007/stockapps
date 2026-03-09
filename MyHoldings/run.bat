@@ -12,5 +12,5 @@ pip install streamlit plotly pandas python-dotenv openai google-genai beautifuls
 
 REM Launch
 start http://localhost:8501
-streamlit run MyHoldingsApp.py
+streamlit run MyHoldingsApp.py --server.headless true
 pause
