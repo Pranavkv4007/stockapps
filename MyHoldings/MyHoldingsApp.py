@@ -16,6 +16,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Setup paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -855,7 +856,7 @@ with st.sidebar:
         test_sp = "You are an AI assistant"
         test_up = "Respond with your model name only"
         st.session_state.api_status = {}
-        for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini")]:
+        for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini"), ("Claude Haiku", "claude-haiku"), ("Claude Sonnet", "claude-sonnet"), ("Claude Opus", "claude-opus")]:
             try:
                 llm(test_sp, test_up, model_key)
                 st.session_state.api_status[model_label] = (True, "")
@@ -879,6 +880,7 @@ with st.sidebar:
         ("Step 5: Final Analysis", "model_step5", "openai"),
         ("Step 6: Walk the Talk", "model_step6", "gemini"),
         ("Step 7: Concall Score", "model_step7", "openai"),
+        ("Step 8: Portfolio Analysis", "model_step8", "claude-sonnet"),
     ]
 
     for label, key, default in step_labels:
@@ -1346,3 +1348,68 @@ with tab_insights:
                             st.markdown(f"- **{row['Company']}**: Gap {row['Abs Gap']:.0f} ({direction})")
                 else:
                     st.info("Need both scores to detect gaps. Run full analysis.")
+
+        # ── Analyst Review (Step 8) ──────────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("### Analyst Review (Step 8)")
+
+        ANALYST_PROMPT_PATH = Path(__file__).parent / "Analyst_prompy.md"
+
+        if st.button("Run Analyst Review", key="btn_analyst_review"):
+            # Build portfolio_details from holdings.json (canonical source)
+            # Enrich with scores from df where available
+            all_holdings = load_holdings()  # list of holding dicts
+            score_lookup = {}
+            if not df.empty:
+                for _, row in df.iterrows():
+                    score_lookup[row["Company"]] = row
+
+            portfolio_lines = []
+            for h in all_holdings:
+                name = h.get("company_name", h.get("url", "Unknown"))
+                sector = h.get("sector_name", "N/A")
+                sub = h.get("sub_sector", "N/A")
+                # Extract NSE ticker from screener URL
+                url = h.get("url", "")
+                url_parts = [p for p in url.rstrip("/").split("/") if p]
+                ticker = url_parts[-1] if url_parts else "N/A"
+                if ticker.lower() in ("consolidated", "standalone") and len(url_parts) >= 2:
+                    ticker = url_parts[-2]
+                row = score_lookup.get(name, {})
+                fin = f"{row['Financial Score']:.0f}/100" if isinstance(row, pd.Series) and pd.notna(row.get('Financial Score')) else "Not analyzed"
+                cred = f"{row['Credibility Score']:.0f}/100" if isinstance(row, pd.Series) and pd.notna(row.get('Credibility Score')) else "Not analyzed"
+                tier = row.get('Tier', '—') if isinstance(row, pd.Series) else '—'
+                signal = row.get('Signal', '—') if isinstance(row, pd.Series) else '—'
+                portfolio_lines.append(
+                    f"| {name} | NSE: {ticker} | Sector: {sector} | Sub-Sector: {sub} | "
+                    f"Financial Score: {fin} | Credibility Score: {cred} | "
+                    f"Tier: {tier} | Signal: {signal} |"
+                )
+            portfolio_details = "\n".join(portfolio_lines)
+
+            # Load prompt from Analyst_prompy.md
+            try:
+                prompt_template = ANALYST_PROMPT_PATH.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                st.error("Analyst_prompy.md not found.")
+                st.stop()
+
+            full_prompt = prompt_template.replace("{{PORTFOLIO}}", portfolio_details)
+
+            # Call LLM with selected Step 8 model
+            model_key = st.session_state.get("model_step8", "claude-sonnet")
+            with st.spinner(f"Running analyst review with {model_key}..."):
+                try:
+                    result = llm(
+                        system_prompt="You are a senior SEBI-Registered Investment Advisor.",
+                        user_prompt=full_prompt,
+                        model_name=model_key,
+                    )
+                    st.session_state["analyst_review_result"] = result
+                except Exception as e:
+                    st.error(f"Analysis failed: {e}")
+
+        # Display cached result in a scrollable container
+        if "analyst_review_result" in st.session_state:
+            with st.container(height=600):
+                st.markdown(st.session_state["analyst_review_result"])
