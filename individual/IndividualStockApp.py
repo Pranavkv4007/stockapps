@@ -25,11 +25,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Model constants
-OPENAI_MODEL = "gpt-4.1-mini-2025-04-14"
-GPT4O = "gpt-4o-mini-2024-07-18"
-GEMINI_MODEL = "gemini-3-pro-preview"
-
 # Base paths derived from this file's location
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
@@ -37,7 +32,13 @@ SECTOR_DIR = os.path.join(PROJECT_ROOT, "Sector")
 INDIVIDUAL_STOCKS_DIR = os.path.join(PROJECT_ROOT, "Individual_Stocks")
 os.makedirs(INDIVIDUAL_STOCKS_DIR, exist_ok=True)
 
-MODEL_OPTIONS = ["gemini", "openai", "gpt4o"]
+# Model constants — loaded from models.json at project root
+with open(os.path.join(PROJECT_ROOT, "models.json")) as _f:
+    _MODELS_CFG = json.load(_f)
+OPENAI_MODEL = _MODELS_CFG["models"]["openai"]
+GPT4O = _MODELS_CFG["models"]["gpt4o"]
+GEMINI_MODEL = _MODELS_CFG["models"]["gemini"]
+MODEL_OPTIONS = _MODELS_CFG["model_options"]
 
 
 @st.cache_resource
@@ -200,7 +201,7 @@ def gemini_llm_kpi(system_prompt, user_prompt, company_name):
         types.Content(role="user", parts=[types.Part(text=user_prompt)])
     ]
     response = gemini_client.models.generate_content(
-        model="gemini-3-pro-preview", contents=contents, config=config
+        model="gemini-3.1-pro-preview", contents=contents, config=config
     )
     return response.text
 
@@ -1003,7 +1004,7 @@ def run_step_6():
             )
         ]
         response = gemini_client.models.generate_content(
-            model="gemini-3-pro-preview", contents=contents, config=config
+            model="gemini-3.1-pro-preview", contents=contents, config=config
         )
         st.session_state.result_walkthetalk = response.text
         add_log("Gemini Search Walk the Talk successful.")

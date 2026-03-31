@@ -50,7 +50,7 @@ def main():
         )
         assert OPENAI_MODEL == "gpt-4.1-mini-2025-04-14"
         assert GPT4O == "gpt-4o-mini-2024-07-18"
-        assert GEMINI_MODEL == "gemini-3-pro-preview"
+        assert GEMINI_MODEL == "gemini-3.1-pro-preview"
         assert MODEL_OPTIONS == ["gemini", "openai", "gpt4o"]
         assert os.path.isabs(SECTOR_DIR)
         assert os.path.isabs(INDIVIDUAL_DIR)

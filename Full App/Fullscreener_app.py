@@ -31,11 +31,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Model constants
-OPENAI_MODEL = "gpt-4.1-mini-2025-04-14"
-GPT4O = "gpt-4o-mini-2024-07-18"
-GEMINI_MODEL = "Gemini 3.1 Pro Preview"
-
 # Base paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
@@ -44,7 +39,13 @@ os.makedirs(SECTOR_DIR, exist_ok=True)
 INDIVIDUAL_DIR = os.path.join(PROJECT_ROOT, "Individual_Stocks")
 os.makedirs(INDIVIDUAL_DIR, exist_ok=True)
 
-MODEL_OPTIONS = ["gemini", "openai", "gpt4o"]
+# Model constants — loaded from models.json at project root
+with open(os.path.join(PROJECT_ROOT, "models.json")) as _f:
+    _MODELS_CFG = json.load(_f)
+OPENAI_MODEL = _MODELS_CFG["models"]["openai"]
+GPT4O = _MODELS_CFG["models"]["gpt4o"]
+GEMINI_MODEL = _MODELS_CFG["models"]["gemini"]
+MODEL_OPTIONS = _MODELS_CFG["model_options"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"

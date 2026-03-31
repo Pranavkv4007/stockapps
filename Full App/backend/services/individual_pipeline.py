@@ -316,7 +316,7 @@ async def _step_6(run_id, r, log, model):
         ]
         response = await asyncio.to_thread(
             gemini_client.models.generate_content,
-            model="gemini-3-pro-preview", contents=contents, config=config
+            model="gemini-3.1-pro-preview", contents=contents, config=config
         )
         r["result_walkthetalk"] = response.text
         log("Gemini Search Walk the Talk successful.")

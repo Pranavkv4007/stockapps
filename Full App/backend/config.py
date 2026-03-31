@@ -3,6 +3,7 @@ Configuration for Stock Analysis Hub.
 Paths, constants, and environment variable overrides.
 """
 
+import json
 import os
 from dotenv import load_dotenv
 
@@ -39,11 +40,14 @@ SIGNAL_COLORS = {
     "Financials Missing": "#adb5bd",
 }
 
-# LLM Model constants
-OPENAI_MODEL = "gpt-4.1-mini-2025-04-14"
-GPT4O = "gpt-4o-mini-2024-07-18"
-GEMINI_MODEL = "gemini-3-pro-preview"
-CLAUDE_HAIKU = "claude-haiku-4-5-20251001"
-CLAUDE_SONNET = "claude-sonnet-4-6"
-CLAUDE_OPUS = "claude-opus-4-6"
-MODEL_OPTIONS = ["gemini", "openai", "gpt4o", "claude-haiku", "claude-sonnet", "claude-opus"]
+# LLM Model constants — loaded from models.json at project root
+_MODELS_JSON = os.path.join(os.path.dirname(PROJECT_ROOT), "models.json")
+with open(_MODELS_JSON) as _f:
+    _MODELS_CFG = json.load(_f)
+OPENAI_MODEL = _MODELS_CFG["models"]["openai"]
+GPT4O = _MODELS_CFG["models"]["gpt4o"]
+GEMINI_MODEL = _MODELS_CFG["models"]["gemini"]
+CLAUDE_HAIKU = _MODELS_CFG["models"]["claude-haiku"]
+CLAUDE_SONNET = _MODELS_CFG["models"]["claude-sonnet"]
+CLAUDE_OPUS = _MODELS_CFG["models"]["claude-opus"]
+MODEL_OPTIONS = _MODELS_CFG["model_options"]
