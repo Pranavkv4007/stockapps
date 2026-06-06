@@ -375,7 +375,14 @@ Instructions
 
 Output Format
 - Provide output in markdown format
-- Organise everything starting with Overall score and finally investment decision
+- Use exactly these 5 scoring dimensions (max points are fixed and must sum to 100):
+    KPI & Ratio Benchmark Performance — max 40 pts
+    Financial Performance Analysis    — max 20 pts
+    Growth Trajectory                 — max 15 pts
+    Financial Health & Stability      — max 15 pts
+    Valuation Assessment              — max 10 pts
+- OVERALL SCORE = exact integer sum of the 5 dimension scores above. No other calculation method.
+- Organise output starting with OVERALL SCORE and ending with INVESTMENT DECISION
 - Include OVERALL SCORE, DETAILED BREAKDOWN, KEY FINANCIAL METRICS, INVESTMENT THESIS, and INVESTMENT DECISION sections
 """
 
@@ -401,6 +408,8 @@ DEFAULT_SYSTEM_PROMPT_CONCALL_SCORE = """You are a specialized financial analyst
 - Product Launch Commitments: 20% weight
 - Strategic Initiatives: 15% weight
 - Regulatory/Approval Targets: 10% weight
+
+IMPORTANT: The 5 metric weights above (totalling 100%) apply WITHIN each year to produce that year's composite score. Do NOT assign custom per-row weights in any table — weights are fixed by category. Then apply time-decay weights ACROSS years (also summing to 100%) to compute the final credibility score. These are two separate weighted calculations.
 
 #### Score Interpretation:
 - 85-100: Exceptional credibility
@@ -533,7 +542,19 @@ Analyze across these dimensions:
 
 **REQUIRED OUTPUT** (in markdown):
 - OVERALL SCORE: [X/100]
-- DETAILED BREAKDOWN with sub-scores
+- DETAILED BREAKDOWN — fill in this exact scoring table (integer scores only, no decimals):
+
+| Dimension | Max Points | Your Score |
+|---|---|---|
+| KPI & Ratio Benchmark Performance | 40 | [0–40] |
+| Financial Performance Analysis | 20 | [0–20] |
+| Growth Trajectory | 15 | [0–15] |
+| Financial Health & Stability | 15 | [0–15] |
+| Valuation Assessment | 10 | [0–10] |
+| **OVERALL SCORE** | **100** | **[sum of the 5 rows above]** |
+
+CRITICAL: OVERALL SCORE must equal the arithmetic sum of the 5 dimension scores. Do not estimate it separately.
+
 - SECTOR KPI PERFORMANCE ANALYSIS
 - SECTOR RATIO ANALYSIS
 - KEY FINANCIAL METRICS ANALYSIS
@@ -567,18 +588,21 @@ def prompt_concall_score(company_name, concall_analysis):
     ### Required Analysis:
 
     1. **Scoring Table Generation**
-    Create a detailed scoring table with columns: Period, Metric Category, Guidance Target, Actual Result, Achievement %, Achievement Status, Individual Score, Weight Applied, Weighted Score Contribution
+    Create a detailed scoring table with columns: Period, Metric Category, Guidance Target, Actual Result, Achievement %, Achievement Status, Score (0-100).
+    Use only the 5 metric categories and fixed weights defined in the system prompt. Do NOT add a "Weight Applied" column — weights are fixed per category, not per row.
 
     2. **Credibility Score Calculation**
-    Calculate comprehensive credibility score with time decay and consistency factors.
+    Calculate comprehensive credibility score using two separate weighted steps:
+    Step A — For each year: compute that year's composite score = sum(metric_score × metric_weight) across the 5 categories (weights from system prompt, summing to 100%).
+    Step B — Final credibility score = sum(year_composite × time_decay_weight) across all years (time-decay weights must also sum to 100%).
 
     3. **Trend Analysis** - Quarter-over-quarter and year-over-year credibility trends.
 
     4. **Qualitative Assessment** - Management guidance revision patterns, communication transparency.
 
-    5. **Investment Implications** - Risk assessment, valuation implications, key monitoring metrics, red flags or positive signals.
+    5. **Investment Implications** - Risk assessment, key monitoring metrics, red flags or positive signals.
 
-    6. **Executive Summary** - Overall credibility score, top 3 strengths, top 3 concerns, investment recommendation context.
+    6. **Executive Summary** - Overall credibility score (X/100), credibility band, top 3 strengths, top 3 concerns, and trend direction. Do NOT include a Buy/Hold/Sell investment recommendation — that is outside the scope of this credibility analysis.
     """
 
 

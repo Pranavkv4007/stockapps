@@ -348,7 +348,7 @@ DEFAULT_SYSTEM_PROMPT_SCORE = """You are a highly specialized financial analyst 
 Your analysis must adhere to the following strict principles:
 1.  **Exclusive Data Source**: Base your entire analysis ONLY on the financial data provided. You must not access, reference, or supplement with any external financial information, databases, or pre-existing knowledge.
 2.  **Sector-Specific Focus**: Tailor your evaluation to the company's sector. Prioritize financial metrics and ratios that are most critical and relevant to that specific industry (e.g., NIM for banking, R&D intensity for technology, asset turnover for manufacturing).
-3.  **Holistic Scoring**: Your final score must be the result of a weighted assessment across five key dimensions: Financial Health, Profitability, Growth Quality, Valuation, and Competitive Positioning.
+3.  **Holistic Scoring**: Your final score must be the result of a weighted assessment across five key dimensions: Financial Health (max 25 pts), Profitability (max 25 pts), Growth Quality (max 20 pts), Valuation (max 15 pts), and Competitive Positioning (max 15 pts). OVERALL SCORE = exact integer sum of the 5 dimension scores. Do not estimate it separately.
 4.  **Methodological Transparency**: Clearly state which metrics you used, how they were weighted, and provide a clear rationale for every conclusion and score.
 5.  **Data Limitations**: Explicitly identify any missing or incomplete data and state how this limits the reliability and scope of your analysis. Use conservative assumptions when data is uncertain.
 
@@ -430,12 +430,25 @@ def user_prompt_score(company_name, sector, financial_summary):
 **1. Scoring and Metrics**
 - **Overall Score**: Calculate a final score from 0-100.
 - **Key Metrics**: Identify and use the 5-7 most relevant financial metrics for the `{sector}` sector to drive your analysis and score.
-- **Score Breakdown**: Provide a separate score for each of the following dimensions, explaining the rationale based on the provided data:
-    - **Financial Health (25% weight)**: Assess liquidity, solvency, and capital structure (e.g., Debt/Equity, Cash).
-    - **Profitability (25% weight)**: Evaluate margins, returns, and efficiency (e.g., ROE, ROA, Operating Profit Margin).
-    - **Growth Quality (20% weight)**: Analyze revenue and earnings growth and their sustainability (e.g., Sales Growth, Profit Growth).
-    - **Valuation (15% weight)**: Examine trading multiples against sector norms (e.g., P/E, P/B).
-    - **Competitive Position (15% weight)**: Infer competitive advantages from financial data (e.g., stable margins, high returns).
+- **Score Breakdown**: Fill in this exact scoring table (integer scores only):
+
+| Dimension | Max Points | Your Score |
+|---|---|---|
+| Financial Health | 25 | [0–25] |
+| Profitability | 25 | [0–25] |
+| Growth Quality | 20 | [0–20] |
+| Valuation | 15 | [0–15] |
+| Competitive Position | 15 | [0–15] |
+| **OVERALL SCORE** | **100** | **[sum of the 5 rows above]** |
+
+CRITICAL: OVERALL SCORE must equal the arithmetic sum of the 5 dimension scores. Do not estimate it separately.
+
+For each dimension, explain your score briefly:
+    - **Financial Health** (max 25): Assess liquidity, solvency, and capital structure (e.g., Debt/Equity, Cash).
+    - **Profitability** (max 25): Evaluate margins, returns, and efficiency (e.g., ROE, ROA, Operating Profit Margin).
+    - **Growth Quality** (max 20): Analyze revenue and earnings growth and their sustainability (e.g., Sales Growth, Profit Growth).
+    - **Valuation** (max 15): Examine trading multiples against sector norms (e.g., P/E, P/B).
+    - **Competitive Position** (max 15): Infer competitive advantages from financial data (e.g., stable margins, high returns).
 
 **2. Data Handling Requirements**
 - **Exclusivity**: Your analysis is strictly limited to the data provided in the `Provided Financial Data` block.
