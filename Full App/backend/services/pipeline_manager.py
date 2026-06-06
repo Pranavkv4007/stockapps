@@ -14,7 +14,7 @@ from typing import Optional
 class PipelineRun:
     run_id: str
     pipeline_type: str  # "sector" or "individual"
-    status: str = "pending"  # pending, running, completed, failed, cancelled
+    status: str = "pending"  # pending, running, completed, failed, cancelled, awaiting_cache_decision
     phase: int = -1
     total_phases: int = 8
     progress: float = 0.0
@@ -25,6 +25,8 @@ class PipelineRun:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     _event_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue())
     _cancelled: bool = False
+    _cache_event: asyncio.Event = field(default_factory=lambda: asyncio.Event())
+    cache_decision: Optional[str] = None  # "continue" | "delete"
 
     def is_cancelled(self):
         return self._cancelled
@@ -50,10 +52,20 @@ class PipelineManager:
 
     def cancel_run(self, run_id: str) -> bool:
         run = self._runs.get(run_id)
-        if run and run.status == "running":
+        if run and run.status in ("running", "awaiting_cache_decision"):
             run._cancelled = True
             run.status = "cancelled"
+            run._cache_event.set()  # unblock any waiting coroutine
             self.push_event(run_id, "cancelled", {"message": "Pipeline cancelled by user"})
+            return True
+        return False
+
+    def set_cache_decision(self, run_id: str, decision: str) -> bool:
+        run = self._runs.get(run_id)
+        if run and run.status == "awaiting_cache_decision":
+            run.cache_decision = decision
+            run.status = "running"
+            run._cache_event.set()
             return True
         return False
 

@@ -511,6 +511,11 @@ DEFAULTS = {
     # Execution flags
     "run_pipeline": False,
     "stop_requested": False,
+    # Cache prompt state
+    "awaiting_cache_decision": False,
+    "cached_files_info": [],
+    "cache_decision": None,
+    "run_processing": False,
 }
 
 for key, val in DEFAULTS.items():
@@ -650,6 +655,9 @@ if run_clicked:
         st.session_state.logs = []
         st.session_state.final_results_json = []
         st.session_state.score_df = None
+        st.session_state.cache_decision = None
+        st.session_state.awaiting_cache_decision = False
+        st.session_state.run_processing = False
 
         with tab_status:
             # ── Phase 1: Scrape sector info ──
@@ -745,229 +753,282 @@ if run_clicked:
                     phase4.update(label=f"Phase 4: Failed - {e}", state="error")
                     st.stop()
 
-            # ── Phase 5: Financial data extraction for each company ──
+            # ── Cache check: prompt if existing files are found ──
             folder_path = st.session_state.folder_path
-            with st.status("Phase 5: Extracting financial data for all companies...", expanded=True) as phase5:
-                progress_bar = st.progress(0, text="Starting financial extraction...")
-                max_runs = 100
-                run_count = 0
+            existing_files = [
+                f for f in os.listdir(folder_path)
+                if os.path.isfile(os.path.join(folder_path, f))
+            ]
+            if existing_files and st.session_state.cache_decision is None:
+                st.session_state.awaiting_cache_decision = True
+                st.session_state.cached_files_info = existing_files
+            else:
+                st.session_state.run_processing = True
 
-                for i in range(len(company_links)):
-                    if run_count >= max_runs:
-                        break
 
-                    file_name = company_list[i] + ".txt"
-                    full_path = os.path.join(folder_path, file_name)
+# ============================================================================
+# Section 7b - Cache Decision UI
+# ============================================================================
 
-                    if not os.path.exists(full_path):
-                        msg = f"Analysing {company_list[i]} on {company_links[i]}. Currently on {i + 1} out of {total_companies}"
-                        st.write(msg)
-                        add_log(msg)
-                        progress_bar.progress(
-                            (i + 1) / total_companies,
-                            text=f"Extracting: {company_list[i]} ({i + 1}/{total_companies})",
+if st.session_state.get("awaiting_cache_decision", False):
+    n = len(st.session_state.cached_files_info)
+    sector_label = st.session_state.sector
+    st.error(
+        f"⚠️ **Cached data found** — The **{sector_label}** folder already has **{n}** file(s) "
+        f"from a previous run. Choose how to proceed:"
+    )
+    with st.expander("View cached files", expanded=False):
+        for fname in st.session_state.cached_files_info:
+            st.text(f"• {fname}")
+    col_cont, col_del = st.columns(2)
+    if col_cont.button("✅ Continue with Cache  (skip already-processed companies)", use_container_width=True):
+        st.session_state.cache_decision = "continue"
+        st.session_state.awaiting_cache_decision = False
+        st.session_state.run_processing = True
+        st.rerun()
+    if col_del.button("🗑️ Delete Cache & Start Fresh  (re-run everything)", use_container_width=True, type="primary"):
+        st.session_state.cache_decision = "delete"
+        st.session_state.awaiting_cache_decision = False
+        st.session_state.run_processing = True
+        st.rerun()
+
+
+# ============================================================================
+# Section 7c - Phases 5–8 Execution (runs after cache decision or when no cache)
+# ============================================================================
+
+if st.session_state.get("run_processing", False):
+    st.session_state.run_processing = False
+
+    folder_path = st.session_state.folder_path
+    company_links = st.session_state.company_links
+    company_list = st.session_state.company_list
+    total_companies = st.session_state.total_companies
+    sector = st.session_state.sector
+
+    if st.session_state.cache_decision == "delete":
+        for _f in os.listdir(folder_path):
+            _fp = os.path.join(folder_path, _f)
+            if os.path.isfile(_fp):
+                try:
+                    os.remove(_fp)
+                except Exception:
+                    pass
+        add_log("Cache deleted. Starting fresh run.")
+
+    with tab_status:
+        # ── Phase 5: Financial data extraction for each company ──
+        with st.status("Phase 5: Extracting financial data for all companies...", expanded=True) as phase5:
+            progress_bar = st.progress(0, text="Starting financial extraction...")
+            max_runs = 100
+            run_count = 0
+
+            for i in range(len(company_links)):
+                if run_count >= max_runs:
+                    break
+
+                file_name = company_list[i] + ".txt"
+                full_path = os.path.join(folder_path, file_name)
+
+                if not os.path.exists(full_path):
+                    msg = f"Analysing {company_list[i]} on {company_links[i]}. Currently on {i + 1} out of {total_companies}"
+                    st.write(msg)
+                    add_log(msg)
+                    progress_bar.progress(
+                        (i + 1) / total_companies,
+                        text=f"Extracting: {company_list[i]} ({i + 1}/{total_companies})",
+                    )
+
+                    time.sleep(1)
+                    try:
+                        result = llm(
+                            st.session_state.sp_screener,
+                            user_prompt_screener(company_links[i]),
+                            st.session_state.model_screener,
                         )
+                        with open(full_path, "w", encoding="utf-8") as f:
+                            f.write(result)
+                        add_log(f"Saved {company_list[i]} data to {full_path}")
+                        run_count += 1
+                    except Exception as e:
+                        add_log(f"ERROR extracting {company_list[i]}: {e}")
+                        st.write(f"⚠️ Error extracting {company_list[i]}: {e}")
+                else:
+                    msg = f"Skipped writing {company_list[i]} — file already exists at {full_path}"
+                    st.write(msg)
+                    add_log(msg)
+                    progress_bar.progress(
+                        (i + 1) / total_companies,
+                        text=f"Skipped (cached): {company_list[i]}",
+                    )
 
-                        time.sleep(1)
-                        try:
-                            result = llm(
-                                st.session_state.sp_screener,
-                                user_prompt_screener(company_links[i]),
-                                st.session_state.model_screener,
-                            )
-                            with open(full_path, "w", encoding="utf-8") as f:
-                                f.write(result)
-                            add_log(f"Saved {company_list[i]} data to {full_path}")
-                            run_count += 1
-                        except Exception as e:
-                            add_log(f"ERROR extracting {company_list[i]}: {e}")
-                            st.write(f"⚠️ Error extracting {company_list[i]}: {e}")
-                    else:
-                        msg = f"Skipped writing {company_list[i]} — file already exists at {full_path}"
-                        st.write(msg)
-                        add_log(msg)
-                        progress_bar.progress(
-                            (i + 1) / total_companies,
-                            text=f"Skipped (cached): {company_list[i]}",
-                        )
+            progress_bar.progress(1.0, text="Financial extraction complete!")
+            phase5.update(label=f"Phase 5: Extracted data for {total_companies} companies", state="complete")
 
-                progress_bar.progress(1.0, text="Financial extraction complete!")
-                phase5.update(label=f"Phase 5: Extracted data for {total_companies} companies", state="complete")
+        # ── Phase 6: Score calculation ──
+        with st.status("Phase 6: Calculating scores for all companies...", expanded=True) as phase6:
+            file_names = []
+            file_contents = []
+            for filename in os.listdir(folder_path):
+                if filename.endswith(".txt") and not filename.endswith("_Score.txt"):
+                    file_path_full = os.path.join(folder_path, filename)
+                    try:
+                        with open(file_path_full, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        base_name = os.path.splitext(filename)[0]
+                        file_names.append(base_name)
+                        file_contents.append(content)
+                    except Exception as e:
+                        add_log(f"Error reading {file_path_full}: {e}")
 
-            # ── Phase 6: Score calculation ──
-            with st.status("Phase 6: Calculating scores for all companies...", expanded=True) as phase6:
-                # Read all txt files
-                file_names = []
-                file_contents = []
-                for filename in os.listdir(folder_path):
-                    if filename.endswith(".txt") and not filename.endswith("_Score.txt"):
-                        file_path_full = os.path.join(folder_path, filename)
-                        try:
-                            with open(file_path_full, "r", encoding="utf-8") as f:
-                                content = f.read()
-                            base_name = os.path.splitext(filename)[0]
-                            file_names.append(base_name)
-                            file_contents.append(content)
-                        except Exception as e:
-                            add_log(f"Error reading {file_path_full}: {e}")
+            progress_bar2 = st.progress(0, text="Starting score calculation...")
 
-                progress_bar2 = st.progress(0, text="Starting score calculation...")
+            for i in range(len(file_names)):
+                base_name = file_names[i]
+                score_file_name = base_name + "_Score.txt"
+                score_full_path = os.path.join(folder_path, score_file_name)
 
-                for i in range(len(file_names)):
-                    base_name = file_names[i]
-                    score_file_name = base_name + "_Score.txt"
-                    score_full_path = os.path.join(folder_path, score_file_name)
+                source_path = os.path.join(folder_path, base_name + ".txt")
+                size_kb = os.path.getsize(source_path) / 1024 if os.path.exists(source_path) else 0
 
-                    # Check file size - skip if > 20KB (likely already a score file)
-                    source_path = os.path.join(folder_path, base_name + ".txt")
-                    size_kb = os.path.getsize(source_path) / 1024 if os.path.exists(source_path) else 0
-
-                    if os.path.exists(score_full_path) or size_kb > 20:
-                        msg = f"Skipping {score_file_name}, already exists."
-                        st.write(msg)
-                        add_log(msg)
-                        progress_bar2.progress(
-                            (i + 1) / len(file_names),
-                            text=f"Skipped: {base_name}",
-                        )
-                        continue
-
-                    msg = f"Score Calculating for {file_names[i]}"
+                if os.path.exists(score_full_path) or size_kb > 20:
+                    msg = f"Skipping {score_file_name}, already exists."
                     st.write(msg)
                     add_log(msg)
                     progress_bar2.progress(
                         (i + 1) / len(file_names),
-                        text=f"Scoring: {file_names[i]} ({i + 1}/{len(file_names)})",
+                        text=f"Skipped: {base_name}",
                     )
+                    continue
 
-                    try:
-                        up = user_prompt_score(file_names[i], sector, file_contents[i])
-                        result = llm(
-                            st.session_state.sp_score,
-                            up,
-                            st.session_state.model_score,
-                        )
-                        time.sleep(1)
-                        with open(score_full_path, "w", encoding="utf-8") as f:
-                            f.write(result)
-                        add_log(f"Saved score for {file_names[i]}")
-                    except Exception as e:
-                        add_log(f"ERROR scoring {file_names[i]}: {e}")
-                        st.write(f"⚠️ Error scoring {file_names[i]}: {e}")
-
-                progress_bar2.progress(1.0, text="Score calculation complete!")
-                phase6.update(label=f"Phase 6: Scored {len(file_names)} companies", state="complete")
-
-            # ── Phase 7: JSON creation ──
-            with st.status("Phase 7: Creating structured JSON summaries...", expanded=True) as phase7:
-                # Re-read score files
-                score_file_names = []
-                score_file_contents = []
-                for filename in os.listdir(folder_path):
-                    if filename.endswith("_Score.txt"):
-                        file_path_full = os.path.join(folder_path, filename)
-                        try:
-                            with open(file_path_full, "r", encoding="utf-8") as f:
-                                content = f.read()
-                            base_name = os.path.splitext(filename)[0]
-                            score_file_names.append(base_name)
-                            score_file_contents.append(content)
-                        except Exception as e:
-                            add_log(f"Error reading {file_path_full}: {e}")
-
-                # Progress file for resumability
-                progress_file = os.path.join(folder_path, "progress.json")
-                if os.path.exists(progress_file):
-                    with open(progress_file, "r") as f:
-                        final_results = json.load(f)
-                    add_log(f"Resumed from existing progress. Already processed: {len(final_results)} files")
-                else:
-                    final_results = []
-
-                start_index = len(final_results)
-                progress_bar3 = st.progress(
-                    start_index / max(len(score_file_names), 1),
-                    text="Starting JSON creation...",
+                msg = f"Score Calculating for {file_names[i]}"
+                st.write(msg)
+                add_log(msg)
+                progress_bar2.progress(
+                    (i + 1) / len(file_names),
+                    text=f"Scoring: {file_names[i]} ({i + 1}/{len(file_names)})",
                 )
 
-                for i in range(start_index, len(score_file_names)):
-                    msg = f"JSON Creation for {score_file_names[i]}"
-                    st.write(msg)
-                    add_log(msg)
-                    progress_bar3.progress(
-                        (i + 1) / len(score_file_names),
-                        text=f"JSON: {score_file_names[i]} ({i + 1}/{len(score_file_names)})",
-                    )
-
-                    try:
-                        up = user_prompt_json(score_file_contents[i])
-                        content = llm_json(st.session_state.sp_json, up)
-                        final_temp = json.loads(content)
-                        final_results.append(final_temp)
-
-                        # Save progress
-                        with open(progress_file, "w") as f:
-                            json.dump(final_results, f, indent=2)
-                        add_log(f"Successfully processed: {score_file_names[i]}")
-                    except Exception as e:
-                        add_log(f"ERROR JSON for {score_file_names[i]}: {e}")
-                        st.write(f"⚠️ Error creating JSON for {score_file_names[i]}: {e}")
-
-                st.session_state.final_results_json = final_results
-                progress_bar3.progress(1.0, text="JSON creation complete!")
-                phase7.update(label=f"Phase 7: Created JSON for {len(final_results)} companies", state="complete")
-
-            # ── Phase 8: Save final files (JSON, CSV) and build score dataframe ──
-            with st.status("Phase 8: Saving final results...", expanded=True) as phase8:
                 try:
-                    # Save sector JSON
-                    json_file_name = sector + ".json"
+                    up = user_prompt_score(file_names[i], sector, file_contents[i])
+                    result = llm(
+                        st.session_state.sp_score,
+                        up,
+                        st.session_state.model_score,
+                    )
+                    time.sleep(1)
+                    with open(score_full_path, "w", encoding="utf-8") as f:
+                        f.write(result)
+                    add_log(f"Saved score for {file_names[i]}")
+                except Exception as e:
+                    add_log(f"ERROR scoring {file_names[i]}: {e}")
+                    st.write(f"⚠️ Error scoring {file_names[i]}: {e}")
+
+            progress_bar2.progress(1.0, text="Score calculation complete!")
+            phase6.update(label=f"Phase 6: Scored {len(file_names)} companies", state="complete")
+
+        # ── Phase 7: JSON creation ──
+        with st.status("Phase 7: Creating structured JSON summaries...", expanded=True) as phase7:
+            score_file_names = []
+            score_file_contents = []
+            for filename in os.listdir(folder_path):
+                if filename.endswith("_Score.txt"):
+                    file_path_full = os.path.join(folder_path, filename)
                     try:
-                        json_full_path = os.path.join(folder_path, json_file_name)
-                        with open(json_full_path, "w", encoding="utf-8") as json_file:
-                            json.dump(final_results, json_file, ensure_ascii=False, indent=2)
-                        add_log(f"File saved to {json_full_path}")
+                        with open(file_path_full, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        base_name = os.path.splitext(filename)[0]
+                        score_file_names.append(base_name)
+                        score_file_contents.append(content)
+                    except Exception as e:
+                        add_log(f"Error reading {file_path_full}: {e}")
+
+            progress_file = os.path.join(folder_path, "progress.json")
+            if os.path.exists(progress_file):
+                with open(progress_file, "r") as f:
+                    final_results = json.load(f)
+                add_log(f"Resumed from existing progress. Already processed: {len(final_results)} files")
+            else:
+                final_results = []
+
+            start_index = len(final_results)
+            progress_bar3 = st.progress(
+                start_index / max(len(score_file_names), 1),
+                text="Starting JSON creation...",
+            )
+
+            for i in range(start_index, len(score_file_names)):
+                msg = f"JSON Creation for {score_file_names[i]}"
+                st.write(msg)
+                add_log(msg)
+                progress_bar3.progress(
+                    (i + 1) / len(score_file_names),
+                    text=f"JSON: {score_file_names[i]} ({i + 1}/{len(score_file_names)})",
+                )
+
+                try:
+                    up = user_prompt_json(score_file_contents[i])
+                    content = llm_json(st.session_state.sp_json, up)
+                    final_temp = json.loads(content)
+                    final_results.append(final_temp)
+
+                    with open(progress_file, "w") as f:
+                        json.dump(final_results, f, indent=2)
+                    add_log(f"Successfully processed: {score_file_names[i]}")
+                except Exception as e:
+                    add_log(f"ERROR JSON for {score_file_names[i]}: {e}")
+                    st.write(f"⚠️ Error creating JSON for {score_file_names[i]}: {e}")
+
+            st.session_state.final_results_json = final_results
+            progress_bar3.progress(1.0, text="JSON creation complete!")
+            phase7.update(label=f"Phase 7: Created JSON for {len(final_results)} companies", state="complete")
+
+        # ── Phase 8: Save final files (JSON, CSV) and build score dataframe ──
+        with st.status("Phase 8: Saving final results...", expanded=True) as phase8:
+            try:
+                json_file_name = sector + ".json"
+                try:
+                    json_full_path = os.path.join(folder_path, json_file_name)
+                    with open(json_full_path, "w", encoding="utf-8") as json_file:
+                        json.dump(final_results, json_file, ensure_ascii=False, indent=2)
+                    add_log(f"File saved to {json_full_path}")
+                except Exception:
+                    safe_name = re.sub(r'[<>:"/\\|?*;]', "_", sector)
+                    json_full_path = os.path.join(folder_path, safe_name + ".json")
+                    with open(json_full_path, "w", encoding="utf-8") as json_file:
+                        json.dump(final_results, json_file, ensure_ascii=False, indent=2)
+                    add_log(f"File saved to {json_full_path}")
+
+                st.write(f"Saved JSON: {json_full_path}")
+
+                if final_results:
+                    df = pd.DataFrame(final_results)
+                    score_df = df[["company", "score"]].copy()
+                    score_df["Sector"] = sector
+                    score_df["url"] = score_df["company"].map(st.session_state.company_dict)
+                    score_df = score_df.sort_values(by="score", ascending=False)
+                    st.session_state.score_df = score_df
+
+                    csv_file_name = sector + ".csv"
+                    try:
+                        csv_full_path = os.path.join(folder_path, csv_file_name)
+                        score_df.to_csv(csv_full_path, index=False, encoding="utf-8-sig")
+                        add_log(f"CSV saved to {csv_full_path}")
                     except Exception:
                         safe_name = re.sub(r'[<>:"/\\|?*;]', "_", sector)
-                        json_full_path = os.path.join(folder_path, safe_name + ".json")
-                        with open(json_full_path, "w", encoding="utf-8") as json_file:
-                            json.dump(final_results, json_file, ensure_ascii=False, indent=2)
-                        add_log(f"File saved to {json_full_path}")
+                        csv_full_path = os.path.join(folder_path, safe_name + ".csv")
+                        score_df.to_csv(csv_full_path, index=False, encoding="utf-8-sig")
+                        add_log(f"CSV saved to {csv_full_path}")
 
-                    st.write(f"Saved JSON: {json_full_path}")
+                    st.write(f"Saved CSV: {csv_full_path}")
 
-                    # Build dataframe
-                    if final_results:
-                        df = pd.DataFrame(final_results)
-                        score_df = df[["company", "score"]].copy()
-                        score_df["Sector"] = sector
-                        score_df["url"] = score_df["company"].map(
-                            st.session_state.company_dict
-                        )
-                        score_df = score_df.sort_values(by="score", ascending=False)
-                        st.session_state.score_df = score_df
+                phase8.update(label="Phase 8: All files saved!", state="complete")
+                add_log("Pipeline completed successfully!")
+            except Exception as e:
+                add_log(f"ERROR in Phase 8: {e}")
+                phase8.update(label=f"Phase 8: Failed - {e}", state="error")
 
-                        # Save CSV
-                        csv_file_name = sector + ".csv"
-                        try:
-                            csv_full_path = os.path.join(folder_path, csv_file_name)
-                            score_df.to_csv(csv_full_path, index=False, encoding="utf-8-sig")
-                            add_log(f"CSV saved to {csv_full_path}")
-                        except Exception:
-                            safe_name = re.sub(r'[<>:"/\\|?*;]', "_", sector)
-                            csv_full_path = os.path.join(folder_path, safe_name + ".csv")
-                            score_df.to_csv(csv_full_path, index=False, encoding="utf-8-sig")
-                            add_log(f"CSV saved to {csv_full_path}")
-
-                        st.write(f"Saved CSV: {csv_full_path}")
-
-                    phase8.update(label="Phase 8: All files saved!", state="complete")
-                    add_log("Pipeline completed successfully!")
-                except Exception as e:
-                    add_log(f"ERROR in Phase 8: {e}")
-                    phase8.update(label=f"Phase 8: Failed - {e}", state="error")
-
-        st.rerun()
+    st.rerun()
 
 
 # ============================================================================

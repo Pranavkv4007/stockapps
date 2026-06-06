@@ -122,6 +122,35 @@ async def run_sector_pipeline(
         if run.is_cancelled():
             return
 
+        # ── Cache check: pause and ask user if existing files found ──
+        existing_files = [
+            f for f in os.listdir(folder_path)
+            if os.path.isfile(os.path.join(folder_path, f))
+        ]
+        if existing_files:
+            run.status = "awaiting_cache_decision"
+            log(f"Cache check: {len(existing_files)} existing file(s) found. Waiting for your decision...")
+            event("cache_prompt", {"files": existing_files, "count": len(existing_files), "sector": sector})
+            await run._cache_event.wait()
+
+            if run.is_cancelled():
+                return
+
+            if run.cache_decision == "delete":
+                for _f in existing_files:
+                    _fp = os.path.join(folder_path, _f)
+                    if os.path.isfile(_fp):
+                        try:
+                            os.remove(_fp)
+                        except Exception:
+                            pass
+                log("Cache deleted. Starting fresh run.")
+            else:
+                log("Continuing with cached files.")
+
+        if run.is_cancelled():
+            return
+
         # ── Phase 5: Financial data extraction ──
         run.phase = 4
         event("phase_start", {"phase": 4, "label": "Extracting financial data"})

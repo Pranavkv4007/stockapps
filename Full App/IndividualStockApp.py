@@ -689,6 +689,12 @@ DEFAULTS = {
     "current_step": -1,
     "step_by_step": False,
     "run_step": -1,
+    # Cache prompt state
+    "ind_awaiting_cache": False,
+    "ind_cached_files": [],
+    "ind_cached_paths": [],
+    "ind_cache_decision": None,
+    "ind_run_remaining": False,
 }
 
 for key, val in DEFAULTS.items():
@@ -1129,36 +1135,101 @@ if run_clicked and not st.session_state.step_by_step:
         st.error("Please enter a Screener.in URL in the sidebar.")
     else:
         st.session_state.logs = []
+        st.session_state.ind_cache_decision = None
+        st.session_state.ind_awaiting_cache = False
+        st.session_state.ind_run_remaining = False
         add_log("Starting full analysis pipeline...")
-        progress_bar = st.progress(0, text="Starting...")
 
-        for i, (label, func) in enumerate(STEPS):
-            progress_bar.progress(
-                (i) / len(STEPS), text=f"Running {label}..."
-            )
-            with st.status(f"{label}...", expanded=True) as status:
-                try:
-                    success = func()
-                    if success:
-                        status.update(
-                            label=f"✅ {label}", state="complete"
-                        )
-                    else:
-                        status.update(
-                            label=f"❌ {label}", state="error"
-                        )
-                        add_log(f"Pipeline stopped at {label}.")
-                        break
-                except Exception as e:
-                    add_log(f"ERROR in {label}: {e}")
-                    status.update(
-                        label=f"❌ {label}: {e}", state="error"
-                    )
-                    break
+        # Run Step 0 first (scrape URL to learn company name and sector)
+        step0_label, step0_func = STEPS[0]
+        step0_success = False
+        with st.status(f"{step0_label}...", expanded=True) as status:
+            try:
+                step0_success = step0_func()
+                if step0_success:
+                    status.update(label=f"✅ {step0_label}", state="complete")
+                else:
+                    status.update(label=f"❌ {step0_label}", state="error")
+                    add_log(f"Pipeline stopped at {step0_label}.")
+            except Exception as e:
+                add_log(f"ERROR in {step0_label}: {e}")
+                status.update(label=f"❌ {step0_label}: {e}", state="error")
 
-        progress_bar.progress(1.0, text="Pipeline complete!")
-        add_log("Pipeline finished.")
+        if step0_success:
+            company_name = st.session_state.company_name
+            sub_sector = st.session_state.sub_sector
+            _cache_check = {
+                f"{company_name}.txt (sector cache)": os.path.join(SECTOR_DIR, sub_sector, company_name + ".txt"),
+                f"{company_name}.txt (analysis)": os.path.join(INDIVIDUAL_STOCKS_DIR, company_name + ".txt"),
+                f"{company_name}_concall.txt": os.path.join(INDIVIDUAL_STOCKS_DIR, company_name + "_concall.txt"),
+                f"{company_name}_concall_score.txt": os.path.join(INDIVIDUAL_STOCKS_DIR, company_name + "_concall_score.txt"),
+            }
+            _found = {lbl: p for lbl, p in _cache_check.items() if os.path.exists(p)}
+            if _found:
+                st.session_state.ind_awaiting_cache = True
+                st.session_state.ind_cached_files = list(_found.keys())
+                st.session_state.ind_cached_paths = list(_found.values())
+            else:
+                st.session_state.ind_run_remaining = True
+
+
+# ── Cache Decision UI (individual pipeline) ──
+if st.session_state.get("ind_awaiting_cache", False):
+    n = len(st.session_state.ind_cached_files)
+    company_name = st.session_state.company_name
+    st.error(
+        f"⚠️ **Cached data found** — **{company_name}** already has **{n}** file(s) "
+        f"from a previous run. Choose how to proceed:"
+    )
+    with st.expander("View cached files", expanded=False):
+        for _f in st.session_state.ind_cached_files:
+            st.text(f"• {_f}")
+    _col1, _col2 = st.columns(2)
+    if _col1.button("✅ Continue with Cache", use_container_width=True, key="ind_cache_cont"):
+        st.session_state.ind_cache_decision = "continue"
+        st.session_state.ind_awaiting_cache = False
+        st.session_state.ind_run_remaining = True
         st.rerun()
+    if _col2.button("🗑️ Delete Cache & Start Fresh", use_container_width=True, type="primary", key="ind_cache_del"):
+        st.session_state.ind_cache_decision = "delete"
+        st.session_state.ind_awaiting_cache = False
+        st.session_state.ind_run_remaining = True
+        st.rerun()
+
+
+# ── Steps 1–7 execution (after cache decision or when no cache found) ──
+if st.session_state.get("ind_run_remaining", False):
+    st.session_state.ind_run_remaining = False
+
+    if st.session_state.ind_cache_decision == "delete":
+        for _path in st.session_state.ind_cached_paths:
+            if os.path.exists(_path):
+                try:
+                    os.remove(_path)
+                except Exception:
+                    pass
+        add_log("Cache deleted. Running fresh analysis.")
+
+    progress_bar = st.progress(0, text="Continuing pipeline...")
+    for i, (label, func) in enumerate(STEPS[1:], start=1):
+        progress_bar.progress(i / len(STEPS), text=f"Running {label}...")
+        with st.status(f"{label}...", expanded=True) as status:
+            try:
+                success = func()
+                if success:
+                    status.update(label=f"✅ {label}", state="complete")
+                else:
+                    status.update(label=f"❌ {label}", state="error")
+                    add_log(f"Pipeline stopped at {label}.")
+                    break
+            except Exception as e:
+                add_log(f"ERROR in {label}: {e}")
+                status.update(label=f"❌ {label}: {e}", state="error")
+                break
+
+    progress_bar.progress(1.0, text="Pipeline complete!")
+    add_log("Pipeline finished.")
+    st.rerun()
 
 
 # ============================================================================

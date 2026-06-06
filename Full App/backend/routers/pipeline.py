@@ -58,6 +58,10 @@ class IndividualStepRequest(BaseModel):
     custom_prompts: Optional[dict] = None
 
 
+class CacheDecisionRequest(BaseModel):
+    decision: str  # "continue" | "delete"
+
+
 # ── Sector Pipeline ──
 
 @router.post("/sector/start")
@@ -187,6 +191,17 @@ async def cancel_pipeline(run_id: str):
     if success:
         return {"status": "cancelled", "run_id": run_id}
     return {"error": "Run not found or not running"}
+
+
+@router.post("/cache-decision/{run_id}")
+async def cache_decision(run_id: str, req: CacheDecisionRequest):
+    """Resume a pipeline paused at cache check with user's decision."""
+    if req.decision not in ("continue", "delete"):
+        return JSONResponse(status_code=400, content={"error": "decision must be 'continue' or 'delete'"})
+    success = mgr.set_cache_decision(run_id, req.decision)
+    if success:
+        return {"status": "ok", "decision": req.decision}
+    return JSONResponse(status_code=400, content={"error": "Run not found or not awaiting cache decision"})
 
 
 @router.get("/runs")
