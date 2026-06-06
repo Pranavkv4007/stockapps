@@ -37,7 +37,7 @@ def _sanitize(obj):
 
 class SectorStartRequest(BaseModel):
     url: str
-    model_screener: str = "gemini"
+    model_screener: str = "gemini-flash"
     model_score: str = "gemini"
     sp_screener: Optional[str] = None
     sp_score: Optional[str] = None

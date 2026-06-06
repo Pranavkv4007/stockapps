@@ -25,7 +25,7 @@ mgr = PipelineManager()
 async def run_sector_pipeline(
     run_id: str,
     url: str,
-    model_screener: str = "gemini",
+    model_screener: str = "gemini-flash",
     model_score: str = "gemini",
     sp_screener: str = None,
     sp_score: str = None,

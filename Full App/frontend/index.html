@@ -193,13 +193,13 @@
             <div class="mb-2">
                 <label class="text-xs font-medium">Extraction Model</label>
                 <select x-model="sp_modelScreener" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-                    <option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                    <option value="gemini">Gemini Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
                 </select>
             </div>
             <div class="mb-3">
                 <label class="text-xs font-medium">Scoring Model</label>
                 <select x-model="sp_modelScore" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-                    <option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                    <option value="gemini">Gemini Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
                 </select>
             </div>
             <div class="mb-3">
@@ -235,7 +235,7 @@
                     <div>
                         <label class="text-xs" x-text="label"></label>
                         <select x-model="ip_models['step' + (idx+1)]" class="w-full px-2 py-0.5 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-                            <option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                            <option value="gemini">Gemini Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
                         </select>
                     </div>
                 </template>
@@ -1326,7 +1326,7 @@ function app() {
 
         // Sector Pipeline state
         sp_url: '',
-        sp_modelScreener: 'gemini',
+        sp_modelScreener: 'gemini-flash',
         sp_modelScore: 'gemini',
         sp_promptTab: 'screener',
         sp_prompts: { screener: '', score: '', json: '' },
