@@ -600,6 +600,40 @@ Then provide a comprehensive assessment covering:
 > *Note: This analysis is based on training-data knowledge of public filings up to [your knowledge cutoff]. Management guidance entries marked "inferred" were not explicitly found in transcripts.*"""
 
 
+def user_prompt_walkthetalk_search(company_name):
+    """Search-grounded variant — used when Gemini Search grounding is active."""
+    return f"""Use Google Search to find real management guidance and actual outcomes for {company_name} covering FY20 to FY25.
+
+Search for:
+1. Earnings call transcripts, investor day presentations, and concall notes (FY20–FY25) where management stated quantitative or qualitative targets for AUM, revenue, PAT, client additions, RM growth, or other KPIs
+2. Quarterly and annual results filings on BSE/NSE, or on screener.in, moneycontrol.com, or the company's investor relations page
+3. Any press releases or Annual Reports that contain forward-looking guidance from management
+
+### Output Required
+Create a table with columns: Year/Period | Management Guidance (Quantitative & Qualitative) | Actual Outcome | Indicator
+Indicator key: 🟢 Achieved | 🟡 Almost Met | 🔴 Missed | 🟢🟢 Overachieved
+
+For each row:
+- Cite the source of the guidance (e.g. "Q4 FY24 earnings call", "FY25 Annual Report")
+- Quote or closely paraphrase the actual guidance given by management
+- Match against audited/reported actual financial outcomes
+
+If after searching no explicit guidance is found for a period, write: *"Guidance not found in available sources — inferred from outcomes"*
+
+Then provide a comprehensive assessment covering:
+- Management guidance vs actual delivery
+- Key performance metrics achievement
+- Credibility trends over the period
+- Investment implications (predictability, execution quality, sustainable growth, shareholder returns)
+
+### Data Integrity Rules
+- Do NOT cite analyst reports (HDFC Securities, CRISIL, etc.) unless you find the actual document via search
+- Do NOT use ranking superlatives ("first in X", "highest in Y") unless the company filing explicitly makes that claim
+- Round uncertain figures and append "(approx.)"
+- Do NOT add a training-data disclaimer — this analysis is search-grounded with live data
+"""
+
+
 def prompt_concall_score(company_name, concall_analysis, data_source: str = "llm_synthesis"):
     confidence_banner = (
         "**Data Confidence: HIGH** — Input was produced by Gemini with live Google Search grounding. "

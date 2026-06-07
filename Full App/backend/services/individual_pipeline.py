@@ -7,10 +7,11 @@ import os
 import time
 import asyncio
 
-from backend.config import SECTOR_DIR, INDIVIDUAL_DIR, GEMINI_MODEL
+from backend.config import SECTOR_DIR, INDIVIDUAL_DIR
 from backend.services.pipeline_manager import PipelineManager
 from backend.services.llm_service import (
     llm, gemini_llm_kpi, clean_and_parse_json, clean_text_for_llm,
+    resolve_gemini_model_id,
 )
 from backend.services.scraper_service import Website, get_subsector_details, get_sector_names
 from backend.services import prompts
@@ -64,12 +65,12 @@ async def run_individual_pipeline(
 
     # Model selections per step
     m1 = models.get("step1", "gemini-flash")
-    m2 = models.get("step2", "gemini-flash")
-    m3 = models.get("step3", "gemini")
+    m2 = models.get("step2", "gemini-flash-lite")
+    m3 = models.get("step3", "gemini-flash")
     m4 = models.get("step4", "gemini-flash")
-    m5 = models.get("step5", "gemini")
-    m6 = models.get("step6", "gemini")
-    m7 = models.get("step7", "gemini")
+    m5 = models.get("step5", "gemini-pro")
+    m6 = models.get("step6", "gemini-pro")
+    m7 = models.get("step7", "gemini-flash")
 
     # Custom prompts with defaults
     sp_screener = custom_prompts.get("screener", prompts.DEFAULT_SYSTEM_PROMPT_SCREENER_IND)
@@ -213,12 +214,13 @@ async def _step_0(run_id, url, r, log):
         return False
 
     site = await asyncio.to_thread(Website, url)
-    r["site_text"] = site.text
+    r["site_text"] = site.get_financial_text()
     r["company_name"] = site.get_company_name()
     log(f"Company: {r['company_name']}")
 
     try:
-        links = await asyncio.to_thread(get_subsector_details, url)
+        # Pass the already-fetched site object to avoid a redundant HTTP request
+        links = await asyncio.to_thread(get_subsector_details, site)
         sector_name, sub_sector = await asyncio.to_thread(get_sector_names, links)
         r["sector_name"] = sector_name
         r["sub_sector"] = sub_sector
@@ -358,17 +360,23 @@ async def _step_6(run_id, r, log, model):
         grounding_tool = types.Tool(google_search=types.GoogleSearch())
         config = types.GenerateContentConfig(
             tools=[grounding_tool],
-            system_instruction="You are a specialized financial data analyst AI with advanced web search capabilities",
+            system_instruction=(
+                "You are a financial research analyst with live web search access. "
+                "Your job is to search for actual earnings call transcripts, investor presentations, "
+                "and official financial filings to find real management guidance and outcomes. "
+                "Always prefer data you find via search over anything in your training data. "
+                "Do not add training-data disclaimers — you are search-grounded."
+            ),
         )
         contents = [
             types.Content(
                 role="user",
-                parts=[types.Part(text=prompts.user_prompt_walkthetalk(company_name))],
+                parts=[types.Part(text=prompts.user_prompt_walkthetalk_search(company_name))],
             )
         ]
         response = await asyncio.to_thread(
             gemini_client.models.generate_content,
-            model=GEMINI_MODEL, contents=contents, config=config
+            model=resolve_gemini_model_id(model), contents=contents, config=config
         )
         r["result_walkthetalk"] = response.text
         r["concall_source"] = "gemini_search"

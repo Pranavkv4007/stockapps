@@ -193,13 +193,19 @@
             <div class="mb-2">
                 <label class="text-xs font-medium">Extraction Model</label>
                 <select x-model="sp_modelScreener" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-                    <option value="gemini-pro">Gemini 2.5 Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="gemini">Gemini Flash Lite</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                    <option value="gemini-pro">Gemini 2.5 Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="gemini-flash-lite">Gemini 2.5 Flash Lite</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                </select>
+            </div>
+            <div class="mb-2">
+                <label class="text-xs font-medium">Scoring Model</label>
+                <select x-model="sp_modelScore" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                    <option value="gemini-pro">Gemini 2.5 Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="gemini-flash-lite">Gemini 2.5 Flash Lite</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
                 </select>
             </div>
             <div class="mb-3">
-                <label class="text-xs font-medium">Scoring Model</label>
-                <select x-model="sp_modelScore" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-                    <option value="gemini-pro">Gemini 2.5 Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="gemini">Gemini Flash Lite</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                <label class="text-xs font-medium">JSON Model</label>
+                <select x-model="sp_modelJson" class="w-full mt-1 px-2 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                    <option value="gemini-pro">Gemini 2.5 Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="gemini-flash-lite">Gemini 2.5 Flash Lite</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
                 </select>
             </div>
             <div class="mb-3">
@@ -235,7 +241,7 @@
                     <div>
                         <label class="text-xs" x-text="label"></label>
                         <select x-model="ip_models['step' + (idx+1)]" class="w-full px-2 py-0.5 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
-                            <option value="gemini-pro">Gemini 2.5 Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="gemini">Gemini Flash Lite</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
+                            <option value="gemini-pro">Gemini 2.5 Pro</option><option value="gemini-flash">Gemini 2.5 Flash</option><option value="gemini-flash-lite">Gemini 2.5 Flash Lite</option><option value="openai">OpenAI</option><option value="gpt4o">GPT-4o</option>
                         </select>
                     </div>
                 </template>
@@ -1354,7 +1360,8 @@ function app() {
         // Sector Pipeline state
         sp_url: '',
         sp_modelScreener: 'gemini-flash',
-        sp_modelScore: 'gemini',
+        sp_modelScore: 'gemini-flash',
+        sp_modelJson: 'gemini-flash',
         sp_promptTab: 'screener',
         sp_prompts: { screener: '', score: '', json: '' },
         sp_promptDefaults: { screener: '', score: '', json: '' },
@@ -1387,7 +1394,7 @@ function app() {
         // Individual Pipeline state
         ip_url: '',
         ip_stepByStep: false,
-        ip_models: { step1: 'gemini-flash', step2: 'gemini-flash', step3: 'gemini', step4: 'gemini-flash', step5: 'gemini', step6: 'gemini', step7: 'gemini' },
+        ip_models: { step1: 'gemini-flash', step2: 'gemini-flash-lite', step3: 'gemini-flash', step4: 'gemini-flash', step5: 'gemini-pro', step6: 'gemini-pro', step7: 'gemini-flash' },
         ip_promptTab: 'screener',
         ip_prompts: { screener: '', json: '', kpi: '', kpi_cal: '', gemini_search: '', final: '', concall_score: '' },
         ip_promptDefaults: { screener: '', json: '', kpi: '', kpi_cal: '', gemini_search: '', final: '', concall_score: '' },
@@ -1731,7 +1738,7 @@ function app() {
             const res = await fetch('/api/pipeline/sector/start', {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    url: this.sp_url, model_screener: this.sp_modelScreener, model_score: this.sp_modelScore,
+                    url: this.sp_url, model_screener: this.sp_modelScreener, model_score: this.sp_modelScore, model_json: this.sp_modelJson,
                     sp_screener: this.sp_prompts.screener || null, sp_score: this.sp_prompts.score || null, sp_json: this.sp_prompts.json || null,
                 }),
             }).then(r => r.json());

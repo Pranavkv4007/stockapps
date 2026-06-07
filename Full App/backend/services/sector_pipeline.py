@@ -26,7 +26,8 @@ async def run_sector_pipeline(
     run_id: str,
     url: str,
     model_screener: str = "gemini-flash",
-    model_score: str = "gemini",
+    model_score: str = "gemini-flash",
+    model_json: str = "gemini-flash",
     sp_screener: str = None,
     sp_score: str = None,
     sp_json: str = None,
@@ -281,7 +282,7 @@ async def run_sector_pipeline(
 
             try:
                 up = prompts.user_prompt_json(score_file_contents[i])
-                content = await asyncio.to_thread(llm_json, sp_json, up)
+                content = await asyncio.to_thread(llm_json, sp_json, up, model_json)
                 final_temp = json.loads(content)
                 final_results.append(final_temp)
                 with open(progress_file, "w") as f:

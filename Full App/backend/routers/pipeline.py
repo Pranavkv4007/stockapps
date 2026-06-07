@@ -38,7 +38,8 @@ def _sanitize(obj):
 class SectorStartRequest(BaseModel):
     url: str
     model_screener: str = "gemini-flash"
-    model_score: str = "gemini"
+    model_score: str = "gemini-flash"
+    model_json: str = "gemini-flash"
     sp_screener: Optional[str] = None
     sp_score: Optional[str] = None
     sp_json: Optional[str] = None
@@ -74,6 +75,7 @@ async def start_sector_pipeline(req: SectorStartRequest, background_tasks: Backg
         req.url,
         req.model_screener,
         req.model_score,
+        req.model_json,
         req.sp_screener,
         req.sp_score,
         req.sp_json,
