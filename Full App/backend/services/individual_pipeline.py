@@ -255,6 +255,12 @@ async def _step_1(run_id, r, log, sp_screener, model):
         log(f"Saved to cache: {full_path}")
 
     r["result_financial_text"] = response
+
+    size_kb = os.path.getsize(full_path) / 1024 if os.path.exists(full_path) else 0
+    if size_kb > 100:
+        log(f"WARNING: Financial text file too large ({size_kb:.1f} KB) — aborting to avoid token overload.")
+        return False
+
     return True
 
 
@@ -404,6 +410,13 @@ async def _step_6(run_id, r, log, model):
 async def _step_7(run_id, r, log, sp_concall_score, model):
     """Concall credibility scoring."""
     company_name = r["company_name"]
+
+    concall_path = os.path.join(INDIVIDUAL_DIR, company_name + "_concall.txt")
+    size_kb = os.path.getsize(concall_path) / 1024 if os.path.exists(concall_path) else 0
+    if size_kb > 100:
+        log(f"WARNING: Concall file too large ({size_kb:.1f} KB) — skipping credibility scoring.")
+        return False
+
     concall_text = clean_text_for_llm(r["result_walkthetalk"])
     data_source = r.get("concall_source", "llm_synthesis")
     up = prompts.prompt_concall_score(company_name, concall_text, data_source)

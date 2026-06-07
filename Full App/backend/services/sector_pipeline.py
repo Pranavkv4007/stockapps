@@ -203,6 +203,10 @@ async def run_sector_pipeline(
             if filename.endswith(".txt") and not filename.endswith("_Score.txt"):
                 fp = os.path.join(folder_path, filename)
                 try:
+                    size_kb = os.path.getsize(fp) / 1024
+                    if size_kb > 100:
+                        log(f"WARNING: Skipping {filename} — file too large ({size_kb:.1f} KB), likely corrupted extraction.")
+                        continue
                     with open(fp, "r", encoding="utf-8") as f:
                         content = f.read()
                     file_names.append(os.path.splitext(filename)[0])
@@ -254,6 +258,10 @@ async def run_sector_pipeline(
             if filename.endswith("_Score.txt"):
                 fp = os.path.join(folder_path, filename)
                 try:
+                    size_kb = os.path.getsize(fp) / 1024
+                    if size_kb > 100:
+                        log(f"WARNING: Skipping {filename} — score file too large ({size_kb:.1f} KB), possibly corrupted.")
+                        continue
                     with open(fp, "r", encoding="utf-8") as f:
                         content = f.read()
                     score_file_names.append(os.path.splitext(filename)[0])
