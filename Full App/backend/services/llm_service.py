@@ -7,7 +7,7 @@ import os
 import re
 import json
 
-from backend.config import OPENAI_MODEL, GPT4O, GEMINI_MODEL, CLAUDE_HAIKU, CLAUDE_SONNET, CLAUDE_OPUS, GEMINI_FLASH
+from backend.config import OPENAI_MODEL, GPT4O, GEMINI_MODEL, CLAUDE_HAIKU, CLAUDE_SONNET, CLAUDE_OPUS, GEMINI_FLASH, GEMINI_PRO
 
 # Lazy singletons
 _openai_client = None
@@ -61,12 +61,12 @@ def build_prompt(system_prompt, user_prompt, model_name):
 
 def llm(system_prompt, user_prompt, model_name):
     match model_name:
-        case "gemini" | "gemini-flash":
+        case "gemini" | "gemini-flash" | "gemini-pro":
             gemini_client = get_gemini_client()
             if gemini_client is None:
                 raise ValueError("GOOGLE_API_KEY is not set.")
             prompts = build_prompt(system_prompt, user_prompt, "gemini")
-            model_id = GEMINI_FLASH if model_name == "gemini-flash" else GEMINI_MODEL
+            model_id = GEMINI_FLASH if model_name == "gemini-flash" else GEMINI_PRO if model_name == "gemini-pro" else GEMINI_MODEL
             response = gemini_client.models.generate_content(
                 model=model_id,
                 contents=[{"role": "user", "parts": [{"text": prompts}]}],
@@ -187,7 +187,7 @@ def check_api_status():
     test_sp = "You are an AI assistant"
     test_up = "Respond with your model name only"
     results = {}
-    for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini"), ("Gemini Flash", "gemini-flash"), ("Claude Haiku", "claude-haiku"), ("Claude Sonnet", "claude-sonnet"), ("Claude Opus", "claude-opus")]:
+    for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini"), ("Gemini Flash", "gemini-flash"), ("Gemini Pro", "gemini-pro"), ("Claude Haiku", "claude-haiku"), ("Claude Sonnet", "claude-sonnet"), ("Claude Opus", "claude-opus")]:
         try:
             llm(test_sp, test_up, model_key)
             results[model_label] = {"ok": True, "error": None}

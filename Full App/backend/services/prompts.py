@@ -394,6 +394,12 @@ DEFAULT_SYSTEM_PROMPT_CONCALL_SCORE = """You are a specialized financial analyst
 3. **Pattern Recognition**: Identify trends in management credibility over multiple periods
 4. **Scoring Methodology**: Apply a consistent, data-driven scoring framework
 
+### Data Integrity Rules (Non-Negotiable):
+- **Only score explicitly stated guidance.** If the input Walk the Talk analysis marks any guidance entry as "inferred" or "not explicitly on record", treat it with a 20-point penalty cap (max score 65 for that row) and flag it visibly in the scoring table.
+- **Do not fabricate sources.** Never cite analyst reports, rating agency documents, or investor presentations as sources unless they appear verbatim in the input data passed to you.
+- **Do not invent or upgrade claims.** If the input says a company "launched X therapy", do not score it as "first in region/country" unless that distinction is explicitly present in the input.
+- **Confidence disclosure required.** In your Executive Summary, include a "Data Confidence" line stating what fraction of guidance entries were explicitly sourced vs. inferred.
+
 ### Scoring Framework:
 
 #### Achievement Categories:
@@ -566,21 +572,49 @@ CRITICAL: OVERALL SCORE must equal the arithmetic sum of the 5 dimension scores.
 
 
 def user_prompt_walkthetalk(company_name):
-    return f"""You are a world class equity research who specialise in checking the walk the talk.
-    Analyze {company_name} 'walk the talk' from FY20 to FY25.
-    Create a table with columns: Year/Period, Management Guidance (Quantitative & Qualitative), Actual Outcome, Indicator (green dot for achieved, yellow for almost met, red for missed, double green for overachieved).
-    Source from annual reports, earnings calls, and financial data.
-    Focus on revenue growth, EBITDA margins, product launches, exports, and approvals.
-    Create a comprehensive assessment table and analysis focusing on:
-    - Management guidance vs actual delivery
-    - Key performance metrics achievement
-    - Credibility trends over the period
-    - Investment implications
-    Fetch the concalls from trusted sources"""
+    return f"""You are a world-class equity researcher specialising in management credibility ("Walk the Talk") analysis.
+
+Analyze {company_name} 'walk the talk' from FY20 to FY25.
+
+### Output Required
+Create a table with columns: Year/Period | Management Guidance (Quantitative & Qualitative) | Actual Outcome | Indicator
+Indicator key: 🟢 Achieved | 🟡 Almost Met | 🔴 Missed | 🟢🟢 Overachieved
+
+Then provide a comprehensive assessment covering:
+- Management guidance vs actual delivery
+- Key performance metrics achievement
+- Credibility trends over the period
+- Investment implications
+
+### Critical Data Integrity Rules — READ CAREFULLY
+
+**Sources:** Use only knowledge derived from your training data (annual reports, company filings, officially published earnings call transcripts). Do NOT cite specific analyst reports (e.g., HDFC Securities, CRISIL, CARE Ratings) as if you fetched them live — you have not. If a figure originates from a rating agency report you have knowledge of, state it as "per [agency] report in training data" not as a live fetch.
+
+**Management Guidance:** Only populate the "Management Guidance" column with guidance that was explicitly stated by management in a known earnings call, annual report, or investor presentation. If explicit guidance for a metric in a given year is not available in your training knowledge, write: *"Guidance not explicitly on record — inferred from outcomes"* rather than inventing a target.
+
+**Superlatives and Rankings:** Do NOT use claims like "first in South India", "highest in Tamil Nadu", or "only provider of X" unless you have direct knowledge of an official press release or company filing making that specific claim. If uncertain, write the factual statement only (e.g., "Launched CAR-T Cell therapy") without the comparative superlative.
+
+**Revenue and Financials:** Use only figures from audited annual reports or officially filed quarterly results. If you are not certain of an exact figure, round it and append "(approx.)" rather than stating a precise unverified number.
+
+**Transparency flag:** At the top of your response, add a one-line note:
+> *Note: This analysis is based on training-data knowledge of public filings up to [your knowledge cutoff]. Management guidance entries marked "inferred" were not explicitly found in transcripts.*"""
 
 
-def prompt_concall_score(company_name, concall_analysis):
+def prompt_concall_score(company_name, concall_analysis, data_source: str = "llm_synthesis"):
+    confidence_banner = (
+        "**Data Confidence: HIGH** — Input was produced by Gemini with live Google Search grounding. "
+        "Guidance entries are sourced from actual concall transcripts or official filings fetched at runtime."
+        if data_source == "gemini_search"
+        else
+        "**Data Confidence: LOW** — Input was produced by LLM synthesis from training data; no live concall transcripts were fetched. "
+        "Guidance targets marked 'inferred' were not verified against actual transcripts. "
+        "Treat the final credibility score as directional only, not auditable."
+    )
+
     return f""""Analyze the Walk the Talk performance for {company_name} and generate a comprehensive credibility score.
+
+    ### Data Source & Confidence
+    {confidence_banner}
 
     ### Input Data:
     {concall_analysis}
@@ -590,6 +624,7 @@ def prompt_concall_score(company_name, concall_analysis):
     1. **Scoring Table Generation**
     Create a detailed scoring table with columns: Period, Metric Category, Guidance Target, Actual Result, Achievement %, Achievement Status, Score (0-100).
     Use only the 5 metric categories and fixed weights defined in the system prompt. Do NOT add a "Weight Applied" column — weights are fixed per category, not per row.
+    For any guidance entry in the input that is marked "inferred" or "not explicitly on record", cap its Score at 65 and add ⚠️ to the Achievement Status cell.
 
     2. **Credibility Score Calculation**
     Calculate comprehensive credibility score using two separate weighted steps:
@@ -602,7 +637,9 @@ def prompt_concall_score(company_name, concall_analysis):
 
     5. **Investment Implications** - Risk assessment, key monitoring metrics, red flags or positive signals.
 
-    6. **Executive Summary** - Overall credibility score (X/100), credibility band, top 3 strengths, top 3 concerns, and trend direction. Do NOT include a Buy/Hold/Sell investment recommendation — that is outside the scope of this credibility analysis.
+    6. **Executive Summary** - Overall credibility score (X/100), credibility band, top 3 strengths, top 3 concerns, trend direction, and the following mandatory line:
+    **Data Confidence: {"HIGH — search-grounded" if data_source == "gemini_search" else "LOW — synthesized from training data, not auditable"}**
+    Do NOT include a Buy/Hold/Sell investment recommendation — that is outside the scope of this credibility analysis.
     """
 
 
