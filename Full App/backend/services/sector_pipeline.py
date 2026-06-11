@@ -235,6 +235,7 @@ async def run_sector_pipeline(
             try:
                 up = prompts.user_prompt_score(base_name, sector, file_contents[i])
                 result = await asyncio.to_thread(llm, sp_score, up, model_score)
+                result = "\n".join(line.rstrip() for line in result.splitlines())
                 await asyncio.to_thread(time.sleep, 1)
                 with open(score_full_path, "w", encoding="utf-8") as f:
                     f.write(result)
@@ -296,6 +297,7 @@ async def run_sector_pipeline(
                 with open(progress_file, "w") as f:
                     json.dump(final_results, f, indent=2)
                 log(f"Processed: {score_file_names[i]}")
+                await asyncio.to_thread(time.sleep, 1)
             except Exception as e:
                 log(f"ERROR JSON for {score_file_names[i]}: {e}")
 
