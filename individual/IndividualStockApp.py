@@ -568,11 +568,16 @@ def user_prompts_gemini_search(company_name, sector_kpi_json):
 def create_user_prompt_final(
     company_name, sector, subsector, financial_summary, sector_kpis_ratios
 ):
+    from datetime import datetime
+    today = datetime.now().strftime("%d %B %Y")
     return f"""**FINANCIAL ANALYSIS TASK**: Analyze the provided financial data and assign a comprehensive financial health score (0-100) for {company_name} in the {sector} sector ({subsector} subsector).
 
+**TODAY'S DATE**: {today}
 **COMPANY**: {company_name}
 **SECTOR**: {sector}
 **SUBSECTOR**: {subsector}
+
+**CRITICAL DATA INSTRUCTION**: ALL financial figures in the summary below — including any labeled FY25, FY26, or the most recent quarters — are **actual reported results**, not projections or estimates. Do NOT treat any period in the data as a future projection. Use the most recent fiscal year and the last 2 quarters as the primary basis for scoring.
 
 **FINANCIAL SUMMARY DATA**:
 {financial_summary}
@@ -583,7 +588,7 @@ def create_user_prompt_final(
 **ANALYSIS FRAMEWORK**:
 Analyze across these dimensions:
 1. Market Valuation & Key Metrics
-2. Profit & Loss Trends — weight the **last 2 quarters most heavily**; explicitly state QoQ and YoY change for Revenue, Operating Profit, and Net Profit. Flag any acceleration or deterioration vs. the full-year annual trend.
+2. Profit & Loss Trends — weight the **last 2 quarters most heavily**; explicitly state QoQ and YoY change for Revenue, Operating Profit, and Net Profit for each of the last 4 quarters. Flag any acceleration or deterioration vs. the full-year annual trend.
 3. Balance Sheet Strength
 4. Cash Flow Quality
 5. Operational Efficiency (from Ratios section)
