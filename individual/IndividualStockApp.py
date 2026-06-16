@@ -579,6 +579,11 @@ def create_user_prompt_final(
 
 **CRITICAL DATA INSTRUCTION**: ALL financial figures in the summary below — including any labeled FY25, FY26, or the most recent quarters — are **actual reported results**, not projections or estimates. Do NOT treat any period in the data as a future projection. Use the most recent fiscal year and the last 2 quarters as the primary basis for scoring.
 
+**CRITICAL ACCURACY RULES (non-negotiable)**:
+- **Revenue from Operations vs Total Income**: Always use the **Revenue from Operations** line from the P&L. Do NOT use Total Income (which includes other income like interest/dividends and is higher). Cite revenue as "Revenue from Operations".
+- **Annual vs quarterly growth rates**: When stating a fiscal year's revenue/sales growth %, derive it from the full-year P&L rows only. Never use a single quarter's YoY growth rate as the annual growth rate for that year.
+- **Efficiency ratios (Working Capital Days, Debtor Days, Inventory Days, etc.)**: Report the exact values from the **Ratios** section of the provided data. Do not interpolate, estimate, or infer prior-year values if they are not explicitly present in the data.
+
 **FINANCIAL SUMMARY DATA**:
 {financial_summary}
 
@@ -625,7 +630,19 @@ def user_prompt_walkthetalk(company_name):
     - Key performance metrics achievement
     - Credibility trends over the period
     - Investment implications
-    Fetch the concalls from trusted sources"""
+    Fetch the concalls from trusted sources
+
+    **CRITICAL DATA RULES:**
+    - **Revenue figures**: Always use **Revenue from Operations** (not Total Income). For Indian listed companies, Total Income includes other income (interest, dividends, etc.) and is higher than Revenue from Operations. When citing annual revenue, use only the Revenue from Operations line from the P&L.
+    - **Annual vs quarterly growth**: Never cite a single quarter's YoY growth rate as the full-year annual growth. Always derive annual growth from the full-year P&L figures.
+    - **Efficiency ratios (Working Capital Days, Debtor Days, etc.)**: Use the exact values from the Ratios section of official filings. Do not estimate or infer prior-year values.
+
+    **CRITICAL: Guidance Period Assignment (NON-NEGOTIABLE)**
+    - The 'Year/Period' column must show the fiscal year the guidance TARGET applies to — NOT the fiscal year in which the earnings call was held.
+    - EXAMPLE: If management states a revenue target of ₹X during the Q2 FY25 earnings call, and that target is explicitly for FY26, the row MUST be labelled 'FY26' and compared against FY26 actual results — NOT placed in the FY25 row.
+    - SELF-CHECK before writing each row: "Is this guidance about what the company will achieve THIS year or NEXT year?" Use the answer as the Year/Period label.
+    - The 'Actual Outcome' in every row must come from the same fiscal year as the 'Year/Period' label. If they don't match, you have the guidance in the wrong row — fix it before outputting.
+    - Guidance marked 'Initial' and 'Revised' for the same target year must both appear in that target year's row (or as sub-rows of it), not split across two different fiscal years."""
 
 
 def prompt_concall_score(company_name, concall_analysis):
@@ -633,6 +650,12 @@ def prompt_concall_score(company_name, concall_analysis):
 
     ### Input Data:
     {concall_analysis}
+
+    ### GUIDANCE PERIOD INTEGRITY CHECK (MANDATORY — do this before scoring any row)
+    For every row in the input table, verify that the 'Guidance Target' and 'Actual Outcome' both belong to the same fiscal year as the 'Year/Period' label.
+    - If a row's guidance target appears to refer to a DIFFERENT fiscal year than its 'Year/Period' label (e.g. a target set for FY26 but labelled FY25), mark it ⚠️ PERIOD MISMATCH and exclude it from scoring — do NOT calculate an achievement % for it.
+    - If the actual outcome is missing or belongs to a different year than the guidance target, mark it ⚠️ UNVERIFIABLE and exclude from scoring.
+    - Only score rows where guidance target year = actual outcome year = Year/Period label.
 
     ### Required Analysis:
 

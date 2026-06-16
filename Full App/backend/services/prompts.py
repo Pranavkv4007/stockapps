@@ -530,6 +530,11 @@ def create_user_prompt_final(
 
 **CRITICAL DATA INSTRUCTION**: ALL financial figures in the summary below — including any labeled FY25, FY26, or the most recent quarters — are **actual reported results**, not projections or estimates. Do NOT treat any period in the data as a future projection. Use the most recent fiscal year and the last 2 quarters as the primary basis for scoring.
 
+**CRITICAL ACCURACY RULES (non-negotiable)**:
+- **Revenue from Operations vs Total Income**: Always use the **Revenue from Operations** line from the P&L (the top-line sales figure). Do NOT use Total Income, which includes other income (interest, dividends, etc.) and is materially higher. Cite revenue as "Revenue from Operations".
+- **Annual vs quarterly growth rates**: When stating a fiscal year's revenue/sales growth %, derive it from the full-year P&L rows only. Never use a single quarter's YoY growth rate as the annual growth rate for that year.
+- **Efficiency ratios (Working Capital Days, Debtor Days, Inventory Days, etc.)**: Report the exact values from the **Ratios** section of the provided data. Do not interpolate, estimate, or infer prior-year values if they are not explicitly present in the data.
+
 **FINANCIAL SUMMARY DATA**:
 {financial_summary}
 
@@ -603,7 +608,14 @@ Then provide a comprehensive assessment covering:
 **Revenue and Financials:** Use only figures from audited annual reports or officially filed quarterly results. If you are not certain of an exact figure, round it and append "(approx.)" rather than stating a precise unverified number.
 
 **Transparency flag:** At the top of your response, add a one-line note:
-> *Note: This analysis is based on training-data knowledge of public filings up to [your knowledge cutoff]. Management guidance entries marked "inferred" were not explicitly found in transcripts.*"""
+> *Note: This analysis is based on training-data knowledge of public filings up to [your knowledge cutoff]. Management guidance entries marked "inferred" were not explicitly found in transcripts.*
+
+**CRITICAL: Guidance Period Assignment (NON-NEGOTIABLE)**
+- The 'Year/Period' column must show the fiscal year the guidance TARGET applies to — NOT the fiscal year in which the earnings call was held.
+- EXAMPLE: If management states a revenue target of ₹X during the Q2 FY25 earnings call, and that target is explicitly for FY26, the row MUST be labelled 'FY26' and compared against FY26 actual results — NOT placed in the FY25 row.
+- SELF-CHECK before writing each row: "Is this guidance about what the company will achieve THIS year or NEXT year?" Use the answer as the Year/Period label.
+- The 'Actual Outcome' in every row must come from the same fiscal year as the 'Year/Period' label. If they don't match, you have the guidance in the wrong row — fix it before outputting.
+- Guidance marked 'Initial' and 'Revised' for the same target year must both appear in that target year's row (or as sub-rows of it), not split across two different fiscal years."""
 
 
 def user_prompt_walkthetalk_search(company_name):
@@ -637,6 +649,18 @@ Then provide a comprehensive assessment covering:
 - Do NOT use ranking superlatives ("first in X", "highest in Y") unless the company filing explicitly makes that claim
 - Round uncertain figures and append "(approx.)"
 - Do NOT add a training-data disclaimer — this analysis is search-grounded with live data
+
+### CRITICAL ACCURACY RULES (non-negotiable)
+- **Revenue from Operations vs Total Income**: Always cite **Revenue from Operations** (the top-line sales figure). Do NOT use Total Income, which includes other income (interest, dividends, etc.) and is materially higher. For Indian listed companies these are two distinct line items.
+- **Annual vs quarterly growth rates**: When stating a fiscal year's revenue growth %, use the full-year P&L figures only. Never substitute a single quarter's YoY growth rate for the full-year annual growth rate.
+- **Efficiency ratios**: Report Working Capital Days, Debtor Days, etc. from the Ratios section of official filings. Do not estimate or infer prior-year values.
+
+### CRITICAL: Guidance Period Assignment (NON-NEGOTIABLE)
+- The 'Year/Period' column must show the fiscal year the guidance TARGET applies to — NOT the fiscal year in which the earnings call was held.
+- EXAMPLE: If management states a revenue target of ₹X during the Q2 FY25 earnings call, and that target is explicitly for FY26, the row MUST be labelled 'FY26' and compared against FY26 actual results — NOT placed in the FY25 row.
+- SELF-CHECK before writing each row: "Is this guidance about what the company will achieve THIS year or NEXT year?" Use the answer as the Year/Period label.
+- The 'Actual Outcome' in every row must come from the same fiscal year as the 'Year/Period' label. If they don't match, you have the guidance in the wrong row — fix it before outputting.
+- Guidance marked 'Initial' and 'Revised' for the same target year must both appear in that target year's row (or as sub-rows of it), not split across two different fiscal years.
 """
 
 
@@ -658,6 +682,12 @@ def prompt_concall_score(company_name, concall_analysis, data_source: str = "llm
 
     ### Input Data:
     {concall_analysis}
+
+    ### GUIDANCE PERIOD INTEGRITY CHECK (MANDATORY — do this before scoring any row)
+    For every row in the input table, verify that the 'Guidance Target' and 'Actual Outcome' both belong to the same fiscal year as the 'Period' label.
+    - If a row's guidance target appears to refer to a DIFFERENT fiscal year than its 'Period' label (e.g. a target set for FY26 but labelled FY25), mark it ⚠️ PERIOD MISMATCH and exclude it from scoring — do NOT calculate an achievement % for it.
+    - If the actual outcome is missing or belongs to a different year than the guidance target, mark it ⚠️ UNVERIFIABLE and exclude from scoring.
+    - Only score rows where guidance target year = actual outcome year = Period label.
 
     ### Required Analysis:
 
