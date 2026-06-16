@@ -452,7 +452,8 @@ def user_prompt_screener_ind(site_text):
         "6. Maintain the same sequence and flow of information.\n"
         "7. Keep any additional notes, disclaimers, or special formatting.\n"
         "8. If any section is missing or unclear, note it but continue with other sections.\n"
-        "9. Do not include Terms of Service, Privacy, Peer comparison, or other non-financial document sections.\n\n"
+        "9. Do not include Terms of Service, Privacy, Peer comparison, or other non-financial document sections.\n"
+        "10. **Prioritize the Quarterly Results section** — extract the last 4 quarters explicitly, labeling each quarter (e.g. Q1 FY25, Q2 FY25). Flag YoY and QoQ trends in Revenue, Operating Profit, and Net Profit.\n\n"
         "**Expected Output Format:**\n"
         "Present the extracted data in plain text format that mirrors the screener website layout.\n"
         "Ensure output is in plain text only."
@@ -533,7 +534,7 @@ def create_user_prompt_final(
 **ANALYSIS FRAMEWORK**:
 Analyze across these dimensions:
 1. Market Valuation & Key Metrics
-2. Profit & Loss Trends (quarterly & yearly)
+2. Profit & Loss Trends — weight the **last 2 quarters most heavily**; explicitly state QoQ and YoY change for Revenue, Operating Profit, and Net Profit. Flag any acceleration or deterioration vs. the full-year annual trend.
 3. Balance Sheet Strength
 4. Cash Flow Quality
 5. Operational Efficiency (from Ratios section)
