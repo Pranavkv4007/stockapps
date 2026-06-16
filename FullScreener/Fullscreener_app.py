@@ -169,20 +169,48 @@ def llm(system_prompt, user_prompt, model_name):
             return "Unknown model"
 
 
-def llm_json(system_prompt, user_prompt):
-    """Call OpenAI with JSON response format for structured output."""
-    openai_client = get_openai_client()
-    if openai_client is None:
-        raise ValueError("OPENAI_API_KEY is not set.")
-    response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format={"type": "json_object"},
-    )
-    return response.choices[0].message.content
+def llm_json(system_prompt, user_prompt, model_name="openai"):
+    """Call the selected model with JSON-enforced output for structured extraction."""
+    match model_name:
+        case "gemini":
+            gemini_client = get_gemini_client()
+            if gemini_client is None:
+                raise ValueError("GOOGLE_API_KEY is not set.")
+            prompt = f"{system_prompt}\n\n{user_prompt}"
+            response = gemini_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}],
+                config={"response_mime_type": "application/json"},
+            )
+            return response.candidates[0].content.parts[0].text
+        case "openai":
+            openai_client = get_openai_client()
+            if openai_client is None:
+                raise ValueError("OPENAI_API_KEY is not set.")
+            response = openai_client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+            )
+            return response.choices[0].message.content
+        case "gpt4o":
+            openai_client = get_openai_client()
+            if openai_client is None:
+                raise ValueError("OPENAI_API_KEY is not set.")
+            response = openai_client.chat.completions.create(
+                model=GPT4O,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+            )
+            return response.choices[0].message.content
+        case _:
+            raise ValueError(f"Unknown model for JSON: {model_name}")
 
 
 def get_sector_details(url, pages, status_container=None):
@@ -418,6 +446,7 @@ DEFAULTS = {
     # Model choices
     "model_screener": "gemini",
     "model_score": "gemini",
+    "model_json": "gemini",
     # Editable prompts
     "sp_screener": DEFAULT_SYSTEM_PROMPT_SCREENER,
     "sp_score": DEFAULT_SYSTEM_PROMPT_SCORE,
@@ -493,6 +522,12 @@ with st.sidebar:
         MODEL_OPTIONS,
         index=MODEL_OPTIONS.index(st.session_state.model_score),
         key="sel_model_score",
+    )
+    st.session_state.model_json = st.selectbox(
+        "JSON Conversion Model",
+        MODEL_OPTIONS,
+        index=MODEL_OPTIONS.index(st.session_state.model_json),
+        key="sel_model_json",
     )
 
     st.markdown("---")
@@ -771,6 +806,7 @@ if run_clicked:
                             up,
                             st.session_state.model_score,
                         )
+                        result = "\n".join(line.rstrip() for line in result.splitlines())
                         time.sleep(1)
                         with open(score_full_path, "w", encoding="utf-8") as f:
                             f.write(result)
@@ -825,7 +861,7 @@ if run_clicked:
 
                     try:
                         up = user_prompt_json(score_file_contents[i])
-                        content = llm_json(st.session_state.sp_json, up)
+                        content = llm_json(st.session_state.sp_json, up, st.session_state.model_json)
                         final_temp = json.loads(content)
                         final_results.append(final_temp)
 

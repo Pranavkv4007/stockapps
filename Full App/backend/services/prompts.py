@@ -394,6 +394,12 @@ DEFAULT_SYSTEM_PROMPT_CONCALL_SCORE = """You are a specialized financial analyst
 3. **Pattern Recognition**: Identify trends in management credibility over multiple periods
 4. **Scoring Methodology**: Apply a consistent, data-driven scoring framework
 
+### Data Integrity Rules (Non-Negotiable):
+- **Only score explicitly stated guidance.** If the input Walk the Talk analysis marks any guidance entry as "inferred" or "not explicitly on record", treat it with a 20-point penalty cap (max score 65 for that row) and flag it visibly in the scoring table.
+- **Do not fabricate sources.** Never cite analyst reports, rating agency documents, or investor presentations as sources unless they appear verbatim in the input data passed to you.
+- **Do not invent or upgrade claims.** If the input says a company "launched X therapy", do not score it as "first in region/country" unless that distinction is explicitly present in the input.
+- **Confidence disclosure required.** In your Executive Summary, include a "Data Confidence" line stating what fraction of guidance entries were explicitly sourced vs. inferred.
+
 ### Scoring Framework:
 
 #### Achievement Categories:
@@ -446,7 +452,8 @@ def user_prompt_screener_ind(site_text):
         "6. Maintain the same sequence and flow of information.\n"
         "7. Keep any additional notes, disclaimers, or special formatting.\n"
         "8. If any section is missing or unclear, note it but continue with other sections.\n"
-        "9. Do not include Terms of Service, Privacy, Peer comparison, or other non-financial document sections.\n\n"
+        "9. Do not include Terms of Service, Privacy, Peer comparison, or other non-financial document sections.\n"
+        "10. **Prioritize the Quarterly Results section** — extract the last 4 quarters explicitly, labeling each quarter (e.g. Q1 FY25, Q2 FY25). Flag YoY and QoQ trends in Revenue, Operating Profit, and Net Profit.\n\n"
         "**Expected Output Format:**\n"
         "Present the extracted data in plain text format that mirrors the screener website layout.\n"
         "Ensure output is in plain text only."
@@ -512,11 +519,21 @@ def user_prompts_gemini_search(company_name, sector_kpi_json):
 def create_user_prompt_final(
     company_name, sector, subsector, financial_summary, sector_kpis_ratios
 ):
+    from datetime import datetime
+    today = datetime.now().strftime("%d %B %Y")
     return f"""**FINANCIAL ANALYSIS TASK**: Analyze the provided financial data and assign a comprehensive financial health score (0-100) for {company_name} in the {sector} sector ({subsector} subsector).
 
+**TODAY'S DATE**: {today}
 **COMPANY**: {company_name}
 **SECTOR**: {sector}
 **SUBSECTOR**: {subsector}
+
+**CRITICAL DATA INSTRUCTION**: ALL financial figures in the summary below — including any labeled FY25, FY26, or the most recent quarters — are **actual reported results**, not projections or estimates. Do NOT treat any period in the data as a future projection. Use the most recent fiscal year and the last 2 quarters as the primary basis for scoring.
+
+**CRITICAL ACCURACY RULES (non-negotiable)**:
+- **Revenue from Operations vs Total Income**: Always use the **Revenue from Operations** line from the P&L (the top-line sales figure). Do NOT use Total Income, which includes other income (interest, dividends, etc.) and is materially higher. Cite revenue as "Revenue from Operations".
+- **Annual vs quarterly growth rates**: When stating a fiscal year's revenue/sales growth %, derive it from the full-year P&L rows only. Never use a single quarter's YoY growth rate as the annual growth rate for that year.
+- **Efficiency ratios (Working Capital Days, Debtor Days, Inventory Days, etc.)**: Report the exact values from the **Ratios** section of the provided data. Do not interpolate, estimate, or infer prior-year values if they are not explicitly present in the data.
 
 **FINANCIAL SUMMARY DATA**:
 {financial_summary}
@@ -527,7 +544,7 @@ def create_user_prompt_final(
 **ANALYSIS FRAMEWORK**:
 Analyze across these dimensions:
 1. Market Valuation & Key Metrics
-2. Profit & Loss Trends (quarterly & yearly)
+2. Profit & Loss Trends — weight the **last 2 quarters most heavily**; explicitly state QoQ and YoY change for Revenue, Operating Profit, and Net Profit for each of the last 4 quarters. Flag any acceleration or deterioration vs. the full-year annual trend.
 3. Balance Sheet Strength
 4. Cash Flow Quality
 5. Operational Efficiency (from Ratios section)
@@ -566,30 +583,118 @@ CRITICAL: OVERALL SCORE must equal the arithmetic sum of the 5 dimension scores.
 
 
 def user_prompt_walkthetalk(company_name):
-    return f"""You are a world class equity research who specialise in checking the walk the talk.
-    Analyze {company_name} 'walk the talk' from FY20 to FY25.
-    Create a table with columns: Year/Period, Management Guidance (Quantitative & Qualitative), Actual Outcome, Indicator (green dot for achieved, yellow for almost met, red for missed, double green for overachieved).
-    Source from annual reports, earnings calls, and financial data.
-    Focus on revenue growth, EBITDA margins, product launches, exports, and approvals.
-    Create a comprehensive assessment table and analysis focusing on:
-    - Management guidance vs actual delivery
-    - Key performance metrics achievement
-    - Credibility trends over the period
-    - Investment implications
-    Fetch the concalls from trusted sources"""
+    return f"""You are a world-class equity researcher specialising in management credibility ("Walk the Talk") analysis.
+
+Analyze {company_name} 'walk the talk' from FY20 to FY25.
+
+### Output Required
+Create a table with columns: Year/Period | Management Guidance (Quantitative & Qualitative) | Actual Outcome | Indicator
+Indicator key: 🟢 Achieved | 🟡 Almost Met | 🔴 Missed | 🟢🟢 Overachieved
+
+Then provide a comprehensive assessment covering:
+- Management guidance vs actual delivery
+- Key performance metrics achievement
+- Credibility trends over the period
+- Investment implications
+
+### Critical Data Integrity Rules — READ CAREFULLY
+
+**Sources:** Use only knowledge derived from your training data (annual reports, company filings, officially published earnings call transcripts). Do NOT cite specific analyst reports (e.g., HDFC Securities, CRISIL, CARE Ratings) as if you fetched them live — you have not. If a figure originates from a rating agency report you have knowledge of, state it as "per [agency] report in training data" not as a live fetch.
+
+**Management Guidance:** Only populate the "Management Guidance" column with guidance that was explicitly stated by management in a known earnings call, annual report, or investor presentation. If explicit guidance for a metric in a given year is not available in your training knowledge, write: *"Guidance not explicitly on record — inferred from outcomes"* rather than inventing a target.
+
+**Superlatives and Rankings:** Do NOT use claims like "first in South India", "highest in Tamil Nadu", or "only provider of X" unless you have direct knowledge of an official press release or company filing making that specific claim. If uncertain, write the factual statement only (e.g., "Launched CAR-T Cell therapy") without the comparative superlative.
+
+**Revenue and Financials:** Use only figures from audited annual reports or officially filed quarterly results. If you are not certain of an exact figure, round it and append "(approx.)" rather than stating a precise unverified number.
+
+**Transparency flag:** At the top of your response, add a one-line note:
+> *Note: This analysis is based on training-data knowledge of public filings up to [your knowledge cutoff]. Management guidance entries marked "inferred" were not explicitly found in transcripts.*
+
+**CRITICAL: Guidance Period Assignment (NON-NEGOTIABLE)**
+- The 'Year/Period' column must show the fiscal year the guidance TARGET applies to — NOT the fiscal year in which the earnings call was held.
+- EXAMPLE: If management states a revenue target of ₹X during the Q2 FY25 earnings call, and that target is explicitly for FY26, the row MUST be labelled 'FY26' and compared against FY26 actual results — NOT placed in the FY25 row.
+- SELF-CHECK before writing each row: "Is this guidance about what the company will achieve THIS year or NEXT year?" Use the answer as the Year/Period label.
+- The 'Actual Outcome' in every row must come from the same fiscal year as the 'Year/Period' label. If they don't match, you have the guidance in the wrong row — fix it before outputting.
+- Guidance marked 'Initial' and 'Revised' for the same target year must both appear in that target year's row (or as sub-rows of it), not split across two different fiscal years."""
 
 
-def prompt_concall_score(company_name, concall_analysis):
+def user_prompt_walkthetalk_search(company_name):
+    """Search-grounded variant — used when Gemini Search grounding is active."""
+    return f"""Use Google Search to find real management guidance and actual outcomes for {company_name} covering FY20 to FY25.
+
+Search for:
+1. Earnings call transcripts, investor day presentations, and concall notes (FY20–FY25) where management stated quantitative or qualitative targets for AUM, revenue, PAT, client additions, RM growth, or other KPIs
+2. Quarterly and annual results filings on BSE/NSE, or on screener.in, moneycontrol.com, or the company's investor relations page
+3. Any press releases or Annual Reports that contain forward-looking guidance from management
+
+### Output Required
+Create a table with columns: Year/Period | Management Guidance (Quantitative & Qualitative) | Actual Outcome | Indicator
+Indicator key: 🟢 Achieved | 🟡 Almost Met | 🔴 Missed | 🟢🟢 Overachieved
+
+For each row:
+- Cite the source of the guidance (e.g. "Q4 FY24 earnings call", "FY25 Annual Report")
+- Quote or closely paraphrase the actual guidance given by management
+- Match against audited/reported actual financial outcomes
+
+If after searching no explicit guidance is found for a period, write: *"Guidance not found in available sources — inferred from outcomes"*
+
+Then provide a comprehensive assessment covering:
+- Management guidance vs actual delivery
+- Key performance metrics achievement
+- Credibility trends over the period
+- Investment implications (predictability, execution quality, sustainable growth, shareholder returns)
+
+### Data Integrity Rules
+- Do NOT cite analyst reports (HDFC Securities, CRISIL, etc.) unless you find the actual document via search
+- Do NOT use ranking superlatives ("first in X", "highest in Y") unless the company filing explicitly makes that claim
+- Round uncertain figures and append "(approx.)"
+- Do NOT add a training-data disclaimer — this analysis is search-grounded with live data
+
+### CRITICAL ACCURACY RULES (non-negotiable)
+- **Revenue from Operations vs Total Income**: Always cite **Revenue from Operations** (the top-line sales figure). Do NOT use Total Income, which includes other income (interest, dividends, etc.) and is materially higher. For Indian listed companies these are two distinct line items.
+- **Annual vs quarterly growth rates**: When stating a fiscal year's revenue growth %, use the full-year P&L figures only. Never substitute a single quarter's YoY growth rate for the full-year annual growth rate.
+- **Efficiency ratios**: Report Working Capital Days, Debtor Days, etc. from the Ratios section of official filings. Do not estimate or infer prior-year values.
+
+### CRITICAL: Guidance Period Assignment (NON-NEGOTIABLE)
+- The 'Year/Period' column must show the fiscal year the guidance TARGET applies to — NOT the fiscal year in which the earnings call was held.
+- EXAMPLE: If management states a revenue target of ₹X during the Q2 FY25 earnings call, and that target is explicitly for FY26, the row MUST be labelled 'FY26' and compared against FY26 actual results — NOT placed in the FY25 row.
+- SELF-CHECK before writing each row: "Is this guidance about what the company will achieve THIS year or NEXT year?" Use the answer as the Year/Period label.
+- The 'Actual Outcome' in every row must come from the same fiscal year as the 'Year/Period' label. If they don't match, you have the guidance in the wrong row — fix it before outputting.
+- Guidance marked 'Initial' and 'Revised' for the same target year must both appear in that target year's row (or as sub-rows of it), not split across two different fiscal years.
+"""
+
+
+def prompt_concall_score(company_name, concall_analysis, data_source: str = "llm_synthesis"):
+    confidence_banner = (
+        "**Data Confidence: HIGH** — Input was produced by Gemini with live Google Search grounding. "
+        "Guidance entries are sourced from actual concall transcripts or official filings fetched at runtime."
+        if data_source == "gemini_search"
+        else
+        "**Data Confidence: LOW** — Input was produced by LLM synthesis from training data; no live concall transcripts were fetched. "
+        "Guidance targets marked 'inferred' were not verified against actual transcripts. "
+        "Treat the final credibility score as directional only, not auditable."
+    )
+
     return f""""Analyze the Walk the Talk performance for {company_name} and generate a comprehensive credibility score.
+
+    ### Data Source & Confidence
+    {confidence_banner}
 
     ### Input Data:
     {concall_analysis}
+
+    ### GUIDANCE PERIOD INTEGRITY CHECK (MANDATORY — do this before scoring any row)
+    For every row in the input table, verify that the 'Guidance Target' and 'Actual Outcome' both belong to the same fiscal year as the 'Period' label.
+    - If a row's guidance target appears to refer to a DIFFERENT fiscal year than its 'Period' label (e.g. a target set for FY26 but labelled FY25), mark it ⚠️ PERIOD MISMATCH and exclude it from scoring — do NOT calculate an achievement % for it.
+    - If the actual outcome is missing or belongs to a different year than the guidance target, mark it ⚠️ UNVERIFIABLE and exclude from scoring.
+    - Only score rows where guidance target year = actual outcome year = Period label.
 
     ### Required Analysis:
 
     1. **Scoring Table Generation**
     Create a detailed scoring table with columns: Period, Metric Category, Guidance Target, Actual Result, Achievement %, Achievement Status, Score (0-100).
     Use only the 5 metric categories and fixed weights defined in the system prompt. Do NOT add a "Weight Applied" column — weights are fixed per category, not per row.
+    For any guidance entry in the input that is marked "inferred" or "not explicitly on record", cap its Score at 65 and add ⚠️ to the Achievement Status cell.
 
     2. **Credibility Score Calculation**
     Calculate comprehensive credibility score using two separate weighted steps:
@@ -602,7 +707,9 @@ def prompt_concall_score(company_name, concall_analysis):
 
     5. **Investment Implications** - Risk assessment, key monitoring metrics, red flags or positive signals.
 
-    6. **Executive Summary** - Overall credibility score (X/100), credibility band, top 3 strengths, top 3 concerns, and trend direction. Do NOT include a Buy/Hold/Sell investment recommendation — that is outside the scope of this credibility analysis.
+    6. **Executive Summary** - Overall credibility score (X/100), credibility band, top 3 strengths, top 3 concerns, trend direction, and the following mandatory line:
+    **Data Confidence: {"HIGH — search-grounded" if data_source == "gemini_search" else "LOW — synthesized from training data, not auditable"}**
+    Do NOT include a Buy/Hold/Sell investment recommendation — that is outside the scope of this credibility analysis.
     """
 
 

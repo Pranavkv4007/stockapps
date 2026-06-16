@@ -25,8 +25,9 @@ mgr = PipelineManager()
 async def run_sector_pipeline(
     run_id: str,
     url: str,
-    model_screener: str = "gemini",
-    model_score: str = "gemini",
+    model_screener: str = "gemini-flash",
+    model_score: str = "gemini-flash",
+    model_json: str = "gemini-flash",
     sp_screener: str = None,
     sp_score: str = None,
     sp_json: str = None,
@@ -122,6 +123,35 @@ async def run_sector_pipeline(
         if run.is_cancelled():
             return
 
+        # ── Cache check: pause and ask user if existing files found ──
+        existing_files = [
+            f for f in os.listdir(folder_path)
+            if os.path.isfile(os.path.join(folder_path, f))
+        ]
+        if existing_files:
+            run.status = "awaiting_cache_decision"
+            log(f"Cache check: {len(existing_files)} existing file(s) found. Waiting for your decision...")
+            event("cache_prompt", {"files": existing_files, "count": len(existing_files), "sector": sector})
+            await run._cache_event.wait()
+
+            if run.is_cancelled():
+                return
+
+            if run.cache_decision == "delete":
+                for _f in existing_files:
+                    _fp = os.path.join(folder_path, _f)
+                    if os.path.isfile(_fp):
+                        try:
+                            os.remove(_fp)
+                        except Exception:
+                            pass
+                log("Cache deleted. Starting fresh run.")
+            else:
+                log("Continuing with cached files.")
+
+        if run.is_cancelled():
+            return
+
         # ── Phase 5: Financial data extraction ──
         run.phase = 4
         event("phase_start", {"phase": 4, "label": "Extracting financial data"})
@@ -173,6 +203,10 @@ async def run_sector_pipeline(
             if filename.endswith(".txt") and not filename.endswith("_Score.txt"):
                 fp = os.path.join(folder_path, filename)
                 try:
+                    size_kb = os.path.getsize(fp) / 1024
+                    if size_kb > 100:
+                        log(f"WARNING: Skipping {filename} — file too large ({size_kb:.1f} KB), likely corrupted extraction.")
+                        continue
                     with open(fp, "r", encoding="utf-8") as f:
                         content = f.read()
                     file_names.append(os.path.splitext(filename)[0])
@@ -201,6 +235,7 @@ async def run_sector_pipeline(
             try:
                 up = prompts.user_prompt_score(base_name, sector, file_contents[i])
                 result = await asyncio.to_thread(llm, sp_score, up, model_score)
+                result = "\n".join(line.rstrip() for line in result.splitlines())
                 await asyncio.to_thread(time.sleep, 1)
                 with open(score_full_path, "w", encoding="utf-8") as f:
                     f.write(result)
@@ -224,6 +259,10 @@ async def run_sector_pipeline(
             if filename.endswith("_Score.txt"):
                 fp = os.path.join(folder_path, filename)
                 try:
+                    size_kb = os.path.getsize(fp) / 1024
+                    if size_kb > 100:
+                        log(f"WARNING: Skipping {filename} — score file too large ({size_kb:.1f} KB), possibly corrupted.")
+                        continue
                     with open(fp, "r", encoding="utf-8") as f:
                         content = f.read()
                     score_file_names.append(os.path.splitext(filename)[0])
@@ -252,12 +291,13 @@ async def run_sector_pipeline(
 
             try:
                 up = prompts.user_prompt_json(score_file_contents[i])
-                content = await asyncio.to_thread(llm_json, sp_json, up)
+                content = await asyncio.to_thread(llm_json, sp_json, up, model_json)
                 final_temp = json.loads(content)
                 final_results.append(final_temp)
                 with open(progress_file, "w") as f:
                     json.dump(final_results, f, indent=2)
                 log(f"Processed: {score_file_names[i]}")
+                await asyncio.to_thread(time.sleep, 1)
             except Exception as e:
                 log(f"ERROR JSON for {score_file_names[i]}: {e}")
 

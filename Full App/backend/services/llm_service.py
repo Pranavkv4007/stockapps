@@ -7,7 +7,7 @@ import os
 import re
 import json
 
-from backend.config import OPENAI_MODEL, GPT4O, GEMINI_MODEL, CLAUDE_HAIKU, CLAUDE_SONNET, CLAUDE_OPUS
+from backend.config import OPENAI_MODEL, GPT4O, GEMINI_MODEL, CLAUDE_HAIKU, CLAUDE_SONNET, CLAUDE_OPUS, GEMINI_FLASH_LITE, GEMINI_FLASH, GEMINI_PRO
 
 # Lazy singletons
 _openai_client = None
@@ -48,6 +48,16 @@ def get_claude_client():
     return _claude_client
 
 
+def resolve_gemini_model_id(model_name: str) -> str:
+    """Resolve a model alias to its actual Gemini model ID."""
+    return (
+        GEMINI_FLASH_LITE if model_name == "gemini-flash-lite" else
+        GEMINI_FLASH if model_name in ("gemini-flash", "gemini") else
+        GEMINI_PRO if model_name == "gemini-pro" else
+        GEMINI_MODEL
+    )
+
+
 def build_prompt(system_prompt, user_prompt, model_name):
     if model_name == "gemini":
         return f"{system_prompt}\n\n{user_prompt}"
@@ -61,13 +71,19 @@ def build_prompt(system_prompt, user_prompt, model_name):
 
 def llm(system_prompt, user_prompt, model_name):
     match model_name:
-        case "gemini":
+        case "gemini" | "gemini-flash-lite" | "gemini-flash" | "gemini-pro":
             gemini_client = get_gemini_client()
             if gemini_client is None:
                 raise ValueError("GOOGLE_API_KEY is not set.")
             prompts = build_prompt(system_prompt, user_prompt, "gemini")
+            model_id = (
+                GEMINI_FLASH_LITE if model_name == "gemini-flash-lite" else
+                GEMINI_FLASH if model_name == "gemini-flash" else
+                GEMINI_PRO if model_name == "gemini-pro" else
+                GEMINI_MODEL
+            )
             response = gemini_client.models.generate_content(
-                model=GEMINI_MODEL,
+                model=model_id,
                 contents=[{"role": "user", "parts": [{"text": prompts}]}],
             )
             return response.candidates[0].content.parts[0].text
@@ -109,20 +125,43 @@ def llm(system_prompt, user_prompt, model_name):
             return "Unknown model"
 
 
-def llm_json(system_prompt, user_prompt):
-    """Call OpenAI with JSON response format for structured output."""
-    openai_client = get_openai_client()
-    if openai_client is None:
-        raise ValueError("OPENAI_API_KEY is not set.")
-    response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format={"type": "json_object"},
-    )
-    return response.choices[0].message.content
+def llm_json(system_prompt, user_prompt, model_name="gemini-flash"):
+    """Call LLM with enforced JSON output. Supports Gemini (default) and OpenAI."""
+    if model_name in ("gemini", "gemini-flash-lite", "gemini-flash", "gemini-pro"):
+        from google.genai import types
+        gemini_client = get_gemini_client()
+        if gemini_client is None:
+            raise ValueError("GOOGLE_API_KEY is not set.")
+        model_id = (
+            GEMINI_FLASH_LITE if model_name == "gemini-flash-lite" else
+            GEMINI_PRO if model_name == "gemini-pro" else
+            GEMINI_FLASH if model_name == "gemini-flash" else
+            GEMINI_MODEL
+        )
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            system_instruction=system_prompt,
+        )
+        response = gemini_client.models.generate_content(
+            model=model_id,
+            contents=[{"role": "user", "parts": [{"text": user_prompt}]}],
+            config=config,
+        )
+        return response.candidates[0].content.parts[0].text
+    else:
+        openai_client = get_openai_client()
+        if openai_client is None:
+            raise ValueError("OPENAI_API_KEY is not set.")
+        model_id = GPT4O if model_name == "gpt4o" else OPENAI_MODEL
+        response = openai_client.chat.completions.create(
+            model=model_id,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format={"type": "json_object"},
+        )
+        return response.choices[0].message.content
 
 
 def gemini_llm_kpi(system_prompt, user_prompt, company_name):
@@ -186,7 +225,7 @@ def check_api_status():
     test_sp = "You are an AI assistant"
     test_up = "Respond with your model name only"
     results = {}
-    for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini"), ("Claude Haiku", "claude-haiku"), ("Claude Sonnet", "claude-sonnet"), ("Claude Opus", "claude-opus")]:
+    for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini"), ("Gemini Flash Lite", "gemini-flash-lite"), ("Gemini Flash", "gemini-flash"), ("Gemini Pro", "gemini-pro"), ("Claude Haiku", "claude-haiku"), ("Claude Sonnet", "claude-sonnet"), ("Claude Opus", "claude-opus")]:
         try:
             llm(test_sp, test_up, model_key)
             results[model_label] = {"ok": True, "error": None}

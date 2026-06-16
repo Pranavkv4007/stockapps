@@ -50,6 +50,77 @@ class Website:
     def get_company_name(self):
         return self.title.split(" share price")[0]
 
+    def get_financial_text(self):
+        """
+        Returns a structured representation of a Screener.in company page.
+        Financial tables are formatted as 'Metric | Year1 | Year2 | ...' rows
+        so the LLM can correctly associate numbers with time periods.
+        Non-table sections (overview, pros/cons, key highlights) are included as-is.
+        """
+        soup = BeautifulSoup(self.body, "html.parser")
+
+        # ── Overview text (no tables, no scripts) ───────────────────────
+        overview_parts = []
+        if soup.body:
+            body_copy = BeautifulSoup(str(soup.body), "html.parser")
+            for tag in body_copy.body(["script", "style", "img", "input", "table"]):
+                tag.decompose()
+            overview_text = body_copy.body.get_text(separator="\n", strip=True)
+            if overview_text.strip():
+                overview_parts.append(overview_text)
+
+        # ── All tables, labelled from nearest heading/section ───────────
+        table_parts = []
+        for table in soup.find_all("table"):
+            label = self._table_label(table)
+
+            headers: list[str] = []
+            thead = table.find("thead")
+            if thead:
+                header_row = thead.find("tr")
+                if header_row:
+                    headers = [
+                        th.get_text(strip=True)
+                        for th in header_row.find_all(["th", "td"])
+                    ]
+
+            rows: list[list[str]] = []
+            tbody = table.find("tbody")
+            if tbody:
+                for tr in tbody.find_all("tr"):
+                    cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
+                    if any(c.strip() for c in cells):
+                        rows.append(cells)
+
+            if not rows:
+                continue
+
+            lines = [f"\n{'='*60}", f"  {label}", f"{'='*60}"]
+            if headers:
+                lines.append(" | ".join(headers))
+                lines.append("-" * 80)
+            for row in rows:
+                lines.append(" | ".join(row))
+
+            table_parts.append("\n".join(lines))
+
+        all_parts = overview_parts + table_parts
+        result = "\n\n".join(p for p in all_parts if p.strip())
+        return result if result.strip() else self.text
+
+    @staticmethod
+    def _table_label(table) -> str:
+        """Walk up the DOM to find the nearest heading or section ID for a table."""
+        node = table.parent
+        while node and node.name not in ("body", "html", "[document]"):
+            heading = node.find(["h2", "h3", "h1", "h4"], recursive=False)
+            if heading:
+                return heading.get_text(strip=True)
+            if node.get("id"):
+                return node["id"].replace("-", " ").title()
+            node = node.parent
+        return "Table"
+
 
 def get_sector_details(url, pages, callback=None):
     """Get all company links from sector pages."""
