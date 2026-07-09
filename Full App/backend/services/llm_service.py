@@ -164,13 +164,16 @@ def llm_json(system_prompt, user_prompt, model_name="gemini-flash"):
         return response.choices[0].message.content
 
 
-def gemini_llm_kpi(system_prompt, user_prompt, company_name):
-    """Gemini Search with grounding tool."""
+def gemini_llm_kpi(system_prompt, user_prompt, company_name, model_name=None):
+    """Gemini Search with grounding tool. Uses model_name if provided, else GEMINI_MODEL."""
     from google.genai import types
 
     gemini_client = get_gemini_client()
     if gemini_client is None:
         raise ValueError("GOOGLE_API_KEY is not set.")
+
+    model_id = resolve_gemini_model_id(model_name) if model_name else GEMINI_MODEL
+
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
     config = types.GenerateContentConfig(
         tools=[grounding_tool], system_instruction=system_prompt
@@ -179,7 +182,7 @@ def gemini_llm_kpi(system_prompt, user_prompt, company_name):
         types.Content(role="user", parts=[types.Part(text=user_prompt)])
     ]
     response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL, contents=contents, config=config
+        model=model_id, contents=contents, config=config
     )
     return response.text
 

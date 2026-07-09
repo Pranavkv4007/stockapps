@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import io
 import json
+import datetime
 
 from backend.services.individual_service import (
     load_individual_scores,
@@ -165,24 +166,30 @@ def refresh():
 # ── File Manager endpoints ────────────────────────────────────────────────────
 
 def _scan_individual_files() -> dict:
-    """Scan Individual_Stocks dir and return file presence per company."""
+    """Scan Individual_Stocks dir and return file presence + generation dates per company."""
     if not os.path.isdir(INDIVIDUAL_DIR):
         return {}
     companies: dict = {}
     for filename in sorted(os.listdir(INDIVIDUAL_DIR)):
         if not filename.endswith(".txt"):
             continue
+        filepath = os.path.join(INDIVIDUAL_DIR, filename)
+        mtime = datetime.date.fromtimestamp(os.path.getmtime(filepath)).isoformat()
         if filename.endswith("_concall_score.txt"):
             company = filename[: -len("_concall_score.txt")]
-            key = "concall_score"
+            key, date_key = "concall_score", "concall_score_date"
         elif filename.endswith("_concall.txt"):
             company = filename[: -len("_concall.txt")]
-            key = "concall"
+            key, date_key = "concall", "concall_date"
         else:
             company = filename[: -len(".txt")]
-            key = "main"
-        companies.setdefault(company, {"main": False, "concall": False, "concall_score": False})
+            key, date_key = "main", "main_date"
+        companies.setdefault(company, {
+            "main": False, "concall": False, "concall_score": False,
+            "main_date": None, "concall_date": None, "concall_score_date": None,
+        })
         companies[company][key] = True
+        companies[company][date_key] = mtime
     return companies
 
 

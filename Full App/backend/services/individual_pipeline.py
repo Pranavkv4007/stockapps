@@ -298,7 +298,7 @@ async def _step_4(run_id, r, log, sp_gemini_search, sp_kpi_cal, model):
         log("Trying Gemini Search for KPI values...")
         up = prompts.user_prompts_gemini_search(company_name, kpi_json)
         sector_kpis_ratios = await asyncio.to_thread(
-            gemini_llm_kpi, sp_gemini_search, up, company_name
+            gemini_llm_kpi, sp_gemini_search, up, company_name, model
         )
         log("Gemini Search successful.")
     except Exception as e:
@@ -363,6 +363,7 @@ async def _step_6(run_id, r, log, model):
         if gemini_client is None:
             raise ValueError("GOOGLE_API_KEY not set")
 
+        model_id = resolve_gemini_model_id(model)
         grounding_tool = types.Tool(google_search=types.GoogleSearch())
         config = types.GenerateContentConfig(
             tools=[grounding_tool],
@@ -380,10 +381,15 @@ async def _step_6(run_id, r, log, model):
                 parts=[types.Part(text=prompts.user_prompt_walkthetalk_search(company_name))],
             )
         ]
-        response = await asyncio.to_thread(
-            gemini_client.models.generate_content,
-            model=resolve_gemini_model_id(model), contents=contents, config=config
-        )
+
+        def _do_search():
+            return gemini_client.models.generate_content(
+                model=model_id,
+                contents=contents,
+                config=config,
+            )
+
+        response = await asyncio.to_thread(_do_search)
         r["result_walkthetalk"] = response.text
         r["concall_source"] = "gemini_search"
         log("Gemini Search Walk the Talk successful (search-grounded).")

@@ -9,6 +9,7 @@ Do NOT simplify or "improve" them.
 import os
 import re
 import json
+import datetime
 import pandas as pd
 from backend.config import INDIVIDUAL_DIR, SCORES_JSON
 
@@ -150,6 +151,7 @@ def load_individual_scores() -> pd.DataFrame:
 
     overall_scores = {}
     credibility_scores = {}
+    generated_dates = {}
 
     for filename in sorted(os.listdir(INDIVIDUAL_DIR)):
         filepath = os.path.join(INDIVIDUAL_DIR, filename)
@@ -160,6 +162,9 @@ def load_individual_scores() -> pd.DataFrame:
             score = extract_overall_score(filepath)
             if score is not None:
                 overall_scores[company] = score
+            generated_dates[company] = datetime.date.fromtimestamp(
+                os.path.getmtime(filepath)
+            ).isoformat()
 
         # Credibility score files: *_concall_score.txt
         elif filename.endswith("_concall_score.txt"):
@@ -195,6 +200,7 @@ def load_individual_scores() -> pd.DataFrame:
             "Combined Score": combined,
             "Tier": assign_tier(combined if combined is not None else (overall or credibility)),
             "Signal": assign_signal(overall, credibility),
+            "Generated": generated_dates.get(company),
         })
 
     return pd.DataFrame(records)
