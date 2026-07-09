@@ -35,8 +35,8 @@ st.set_page_config(
 
 @st.cache_data
 def run_csv_combiner():
-    """Replicates CsvCombiner.ipynb: reads sector CSVs, filters top scores,
-    combines into one dataframe, and saves (overwrites) Sector_Combined.csv."""
+    """Replicates CsvCombiner logic: reads sector CSVs, filters top scores,
+    combines into one dataframe, and saves Sector_Combined.csv."""
     df_list = []
 
     if not os.path.isdir(SECTOR_DIR):
@@ -62,8 +62,10 @@ def run_csv_combiner():
         return pd.DataFrame()
 
     final_df = pd.concat(df_list, ignore_index=True)
-    # Always overwrite — never append
-    final_df.to_csv(COMBINED_CSV, index=False, encoding="utf-8-sig")
+    try:
+        final_df.to_csv(COMBINED_CSV, index=False, encoding="utf-8-sig")
+    except Exception:
+        pass
     return final_df
 
 

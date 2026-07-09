@@ -346,8 +346,8 @@ Do not return anything outside the JSON block. Ensure that the JSON is valid and
 """
 
 
-def user_prompt_screener(url):
-    site = Website(url)
+def user_prompt_screener(site_text):
+    """Generate user prompt for sector screener extraction. Uses pre-scraped text."""
     return f"""
 I need you to extract and summarize financial data from a website.
 
@@ -356,7 +356,7 @@ First, provide a brief checklist of the key steps you'll take to extract and for
 Next, analyze the following financial data and provide a comprehensive summary:
 
 The contents of this website are as follows:
-{site.text}
+{site_text}
 
 **Instructions:**
 1.  Reproduce the data exactly as it appears on the screener website.
@@ -729,9 +729,10 @@ if run_clicked:
 
                         time.sleep(1)
                         try:
+                            company_site = Website(company_links[i])
                             result = llm(
                                 st.session_state.sp_screener,
-                                user_prompt_screener(company_links[i]),
+                                user_prompt_screener(company_site.text),
                                 st.session_state.model_screener,
                             )
                             with open(full_path, "w", encoding="utf-8") as f:

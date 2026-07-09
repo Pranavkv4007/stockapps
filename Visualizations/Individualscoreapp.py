@@ -302,7 +302,7 @@ tab_overview, tab_compare, tab_leaderboard, tab_data = st.tabs(
 
 def assign_tier(score):
     """Map a numeric score to a human-readable tier label."""
-    if pd.isna(score):
+    if score is None or pd.isna(score):
         return "\u2014"
     if score >= 80:
         return "Excellent"
@@ -313,14 +313,10 @@ def assign_tier(score):
     return "Weak"
 
 
-def assign_signal(row):
-    """Derive a buy-signal verdict from both scores.
-    When both scores are available, categorise agreement/disagreement.
-    When only one exists, flag incomplete data."""
-    fin = row.get("Financial Score")
-    con = row.get("Concall Score")
-    has_fin = pd.notna(fin)
-    has_con = pd.notna(con)
+def assign_signal(fin, con):
+    """Derive a buy-signal verdict from both scores."""
+    has_fin = fin is not None and not pd.isna(fin)
+    has_con = con is not None and not pd.isna(con)
 
     if has_fin and has_con:
         if fin >= 75 and con >= 75:
@@ -377,7 +373,9 @@ with tab_overview:
         overview = filtered.head(show_top_n).copy()
         overview.insert(0, "Rank", range(1, len(overview) + 1))
         overview["Tier"] = overview[score_col].apply(assign_tier)
-        overview["Signal"] = overview.apply(assign_signal, axis=1)
+        overview["Signal"] = overview.apply(
+            lambda r: assign_signal(r.get("Financial Score"), r.get("Concall Score")), axis=1
+        )
 
         # Build display table
         display_cols = ["Rank", "Company", "Financial Score", "Concall Score", "Combined Score", "Tier", "Signal"]
@@ -429,7 +427,9 @@ with tab_compare:
         both["Stronger"] = both["Gap"].apply(
             lambda g: "Financials" if g > 5 else ("Concall" if g < -5 else "Balanced")
         )
-        both["Signal"] = both.apply(assign_signal, axis=1)
+        both["Signal"] = both.apply(
+            lambda r: assign_signal(r.get("Financial Score"), r.get("Concall Score")), axis=1
+        )
         both = both.sort_values("Combined Score", ascending=False)
         both.insert(0, "Rank", range(1, len(both) + 1))
 
