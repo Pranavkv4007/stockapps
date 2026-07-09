@@ -38,6 +38,12 @@ with open(os.path.join(PROJECT_ROOT, "models.json")) as _f:
 OPENAI_MODEL = _MODELS_CFG["models"]["openai"]
 GPT4O = _MODELS_CFG["models"]["gpt4o"]
 GEMINI_MODEL = _MODELS_CFG["models"]["gemini"]
+CLAUDE_HAIKU = _MODELS_CFG["models"]["claude-haiku"]
+CLAUDE_SONNET = _MODELS_CFG["models"]["claude-sonnet"]
+CLAUDE_OPUS = _MODELS_CFG["models"]["claude-opus"]
+GEMINI_FLASH_LITE = _MODELS_CFG["models"]["gemini-flash-lite"]
+GEMINI_FLASH = _MODELS_CFG["models"]["gemini-flash"]
+GEMINI_PRO = _MODELS_CFG["models"]["gemini-pro"]
 MODEL_OPTIONS = _MODELS_CFG["model_options"]
 
 
@@ -59,6 +65,26 @@ def get_gemini_client():
     from google import genai
 
     return genai.Client(api_key=api_key)
+
+
+@st.cache_resource
+def get_claude_client():
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    import anthropic
+
+    return anthropic.Anthropic(api_key=api_key)
+
+
+def resolve_gemini_model_id(model_name):
+    """Resolve a model alias to its actual Gemini model ID."""
+    return (
+        GEMINI_FLASH_LITE if model_name == "gemini-flash-lite" else
+        GEMINI_FLASH if model_name in ("gemini-flash", "gemini") else
+        GEMINI_PRO if model_name == "gemini-pro" else
+        GEMINI_MODEL
+    )
 
 
 # ============================================================================
@@ -119,20 +145,21 @@ def build_prompt(system_prompt, user_prompt, model_name):
 
 def llm(system_prompt, user_prompt, model_name):
     match model_name:
-        case "gemini":
+        case "gemini" | "gemini-flash-lite" | "gemini-flash" | "gemini-pro":
             gemini_client = get_gemini_client()
             if gemini_client is None:
-                raise ValueError("GOOGLE_API_KEY is not set. Cannot use Gemini model.")
+                raise ValueError("GOOGLE_API_KEY is not set.")
             prompts = build_prompt(system_prompt, user_prompt, "gemini")
+            model_id = resolve_gemini_model_id(model_name)
             response = gemini_client.models.generate_content(
-                model=GEMINI_MODEL,
+                model=model_id,
                 contents=[{"role": "user", "parts": [{"text": prompts}]}],
             )
             return response.candidates[0].content.parts[0].text
         case "openai":
             openai_client = get_openai_client()
             if openai_client is None:
-                raise ValueError("OPENAI_API_KEY is not set. Cannot use OpenAI model.")
+                raise ValueError("OPENAI_API_KEY is not set.")
             prompts = build_prompt(system_prompt, user_prompt, "openai")
             response = openai_client.chat.completions.create(
                 model=OPENAI_MODEL, messages=prompts
@@ -141,12 +168,28 @@ def llm(system_prompt, user_prompt, model_name):
         case "gpt4o":
             openai_client = get_openai_client()
             if openai_client is None:
-                raise ValueError("OPENAI_API_KEY is not set. Cannot use GPT-4o model.")
+                raise ValueError("OPENAI_API_KEY is not set.")
             prompts = build_prompt(system_prompt, user_prompt, "openai")
             response = openai_client.chat.completions.create(
                 model=GPT4O, messages=prompts
             )
             return response.choices[0].message.content
+        case "claude-haiku" | "claude-sonnet" | "claude-opus":
+            claude_client = get_claude_client()
+            if claude_client is None:
+                raise ValueError("ANTHROPIC_API_KEY is not set.")
+            claude_model = {
+                "claude-haiku": CLAUDE_HAIKU,
+                "claude-sonnet": CLAUDE_SONNET,
+                "claude-opus": CLAUDE_OPUS,
+            }[model_name]
+            response = claude_client.messages.create(
+                model=claude_model,
+                max_tokens=8096,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            return response.content[0].text
         case _:
             return "Unknown model"
 
@@ -189,10 +232,16 @@ def clean_and_parse_json(llm_output):
         return None
 
 
-def gemini_llm_kpi(system_prompt, user_prompt, company_name):
+def gemini_llm_kpi(system_prompt, user_prompt, company_name, model_name=None):
+    """Gemini Search with grounding tool. Uses model_name if provided, else GEMINI_MODEL."""
     from google.genai import types
 
     gemini_client = get_gemini_client()
+    if gemini_client is None:
+        raise ValueError("GOOGLE_API_KEY is not set.")
+
+    model_id = resolve_gemini_model_id(model_name) if model_name else GEMINI_MODEL
+
     grounding_tool = types.Tool(google_search=types.GoogleSearch())
     config = types.GenerateContentConfig(
         tools=[grounding_tool], system_instruction=system_prompt
@@ -201,7 +250,7 @@ def gemini_llm_kpi(system_prompt, user_prompt, company_name):
         types.Content(role="user", parts=[types.Part(text=user_prompt)])
     ]
     response = gemini_client.models.generate_content(
-        model="gemini-3.1-pro-preview", contents=contents, config=config
+        model=model_id, contents=contents, config=config
     )
     return response.text
 
@@ -787,13 +836,14 @@ DEFAULTS = {
     "sub_sector": "",
     "site_text": "",
     # Model choices per step
-    "model_step1": "gemini",
-    "model_step2": "gemini",
-    "model_step3": "openai",
-    "model_step4": "gemini",  # Gemini search
-    "model_step5": "openai",
-    "model_step6": "gemini",  # Walk the talk (Gemini search)
-    "model_step7": "openai",
+    # Defaults match Full App individual_pipeline.py; must be valid MODEL_OPTIONS keys
+    "model_step1": "gemini-flash",
+    "model_step2": "gemini-flash-lite",
+    "model_step3": "gemini-flash",
+    "model_step4": "gemini-flash",  # Gemini search
+    "model_step5": "gemini-pro",
+    "model_step6": "gemini-pro",  # Walk the talk (Gemini search)
+    "model_step7": "gemini-flash",
     # Editable system prompts
     "sp_screener": DEFAULT_SYSTEM_PROMPT_SCREENER,
     "sp_json": DEFAULT_SYSTEM_PROMPT_JSON,
@@ -851,7 +901,7 @@ with st.sidebar:
         test_sp = "You are an AI assistant"
         test_up = "Im testing an api call respond with your model name and latest knowledge cut off date"
         st.session_state.api_status = {}
-        for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini")]:
+        for model_label, model_key in [("OpenAI", "openai"), ("GPT-4o", "gpt4o"), ("Gemini", "gemini"), ("Gemini Flash Lite", "gemini-flash-lite"), ("Gemini Flash", "gemini-flash"), ("Gemini Pro", "gemini-pro"), ("Claude Haiku", "claude-haiku"), ("Claude Sonnet", "claude-sonnet"), ("Claude Opus", "claude-opus")]:
             try:
                 llm(test_sp, test_up, model_key)
                 st.session_state.api_status[model_label] = (True, "")
@@ -1062,7 +1112,9 @@ def run_step_4():
         add_log("Trying Gemini Search for KPI values...")
         sp = st.session_state.sp_gemini_search
         up = user_prompts_gemini_search(company_name, kpi_json)
-        sector_kpis_ratios = gemini_llm_kpi(sp, up, company_name)
+        sector_kpis_ratios = gemini_llm_kpi(
+            sp, up, company_name, st.session_state.model_step4
+        )
         add_log("Gemini Search successful.")
     except Exception as e:
         add_log(f"Gemini Search failed: {e}. Falling back to calculation...")
@@ -1150,8 +1202,9 @@ def run_step_6():
                 parts=[types.Part(text=user_prompt_walkthetalk_search(company_name))],
             )
         ]
+        model_id = resolve_gemini_model_id(st.session_state.model_step6)
         response = gemini_client.models.generate_content(
-            model="gemini-3.1-pro-preview", contents=contents, config=config
+            model=model_id, contents=contents, config=config
         )
         st.session_state.result_walkthetalk = response.text
         st.session_state.concall_source = "gemini_search"
