@@ -636,6 +636,7 @@
                                     <th class="px-3 py-2.5 text-left">#</th><th class="px-3 py-2.5 text-left">Company</th>
                                     <th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th>
                                     <th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-left">Tier</th><th class="px-3 py-2.5 text-left">Signal</th>
+                                    <th class="px-3 py-2.5 text-center">Generated</th>
                                 </tr></thead>
                                 <tbody>
                                     <template x-for="(r, i) in indFilteredData.slice(0, indTopN)" :key="i">
@@ -647,6 +648,7 @@
                                             <td class="px-3 py-2 text-right"><span class="px-1.5 py-0.5 rounded text-xs font-bold" :style="scoreBadgeStyle(r['Combined Score'])" x-text="r['Combined Score'] || '—'"></span></td>
                                             <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="tierBadgeStyle(r.Tier)" x-text="r.Tier"></span></td>
                                             <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs font-medium" :style="signalBadgeStyle(r.Signal)" x-text="r.Signal"></span></td>
+                                            <td class="px-3 py-2 text-center text-xs text-gray-500" x-text="r['Generated'] || '—'"></td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -790,7 +792,7 @@
                         </div>
                         <div class="table-container bg-white dark:bg-gray-800 rounded-lg shadow">
                             <table class="text-sm">
-                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2.5 text-left">Company</th><th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th><th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-left">Tier</th><th class="px-3 py-2.5 text-left">Signal</th></tr></thead>
+                                <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2.5 text-left">Company</th><th class="px-3 py-2.5 text-right">Financial</th><th class="px-3 py-2.5 text-right">Concall</th><th class="px-3 py-2.5 text-right">Combined</th><th class="px-3 py-2.5 text-left">Tier</th><th class="px-3 py-2.5 text-left">Signal</th><th class="px-3 py-2.5 text-center">Generated</th></tr></thead>
                                 <tbody>
                                     <template x-for="(r, i) in indAllData" :key="i">
                                         <tr class="border-b dark:border-gray-700" :class="i % 2 ? 'bg-gray-50 dark:bg-gray-800/50' : ''">
@@ -800,6 +802,7 @@
                                             <td class="px-3 py-2 text-right" x-text="r['Combined Score'] || '—'"></td>
                                             <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="tierBadgeStyle(r.Tier)" x-text="r.Tier"></span></td>
                                             <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs" :style="signalBadgeStyle(r.Signal)" x-text="r.Signal"></span></td>
+                                            <td class="px-3 py-2 text-center text-xs text-gray-500" x-text="r['Generated'] || '—'"></td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -1104,6 +1107,7 @@
                                         <th class="text-center px-3 py-2">Analysis (.txt)</th>
                                         <th class="text-center px-3 py-2">Concall (_concall.txt)</th>
                                         <th class="text-center px-3 py-2">Score (_concall_score.txt)</th>
+                                        <th class="text-center px-3 py-2">Generated</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1113,6 +1117,7 @@
                                             <td class="text-center px-3 py-1.5" x-text="files.main ? '✅' : '❌'"></td>
                                             <td class="text-center px-3 py-1.5" x-text="files.concall ? '✅' : '❌'"></td>
                                             <td class="text-center px-3 py-1.5" x-text="files.concall_score ? '✅' : '❌'"></td>
+                                            <td class="text-center px-3 py-1.5 text-xs text-gray-500" x-text="files.main_date || '—'"></td>
                                         </tr>
                                     </template>
                                 </tbody>
