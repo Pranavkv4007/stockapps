@@ -172,8 +172,9 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Claude Code
-.claude/
+# Claude Code — keep local settings private, but version the project skills
+.claude/*
+!.claude/skills/
 
 # OS files
 Thumbs.db
