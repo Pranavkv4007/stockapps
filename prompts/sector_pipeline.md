@@ -142,9 +142,17 @@ Ensure the output is in plain text only. Review and validate that all requested 
 ### Company Information
 - **Company**: {company_name}
 - **Sector**: {sector}
+- **TODAY'S DATE**: {today}
 
 ### Provided Financial Data
 {financial_summary}
+
+**CRITICAL: MOST RECENT PERIOD IDENTIFICATION (non-negotiable)**
+- The data above contains MULTIPLE fiscal years/quarters in the same table (e.g. a P&L or ratio row spanning Mar 2018 ... Mar 2026). The RIGHTMOST column is the most recent actual reported period. Use it as "current" for scoring — never an earlier column just because it shows a stronger number. All periods shown are actual reported results, not projections.
+- Do NOT anchor the score or rationale on an earlier fiscal year's figures when later actual columns are present in the same table, even if the earlier year looks more favorable.
+- If a standalone ratio/metric (e.g. ROE, ROCE, P/E shown near the top of the data, outside the yearly table) differs from that same metric's value inside the yearly table, treat the standalone figure as the more current TTM/latest figure — do NOT dismiss the mismatch as a "data inconsistency" to be shrugged off. Reconcile it explicitly: state which figure is more recent and use that one to drive the score.
+- SELF-CHECK before finalizing the score: "Which column/value in this data is the LATEST actual period, and does my score reflect the trend across ALL periods shown — not just the best-looking one?" If the most recent 1-2 periods show a reversal (e.g. declining ROE, falling profit) relative to earlier years, this must be reflected in the Profitability and Growth Quality scores.
+- EXAMPLE: A P&L table shows Net Profit ₹670 Cr (FY24), ₹501 Cr (FY25), ₹326 Cr (FY26). FY26 is the latest actual year and shows a 2-year decline — score based on the FY26 trend (deteriorating), not FY24 as if it were the current/turnaround year.
 
 ### Analysis Instructions
 
