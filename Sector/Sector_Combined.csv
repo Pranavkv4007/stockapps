@@ -1,42 +1,19 @@
 ﻿company,score,Sector,url
-Canara Robeco Asset Management Company Ltd,89.0,Asset Management Company Companies,https://www.screener.in/company/CRAMC/
-Aditya Birla Sun Life AMC Ltd,85.0,Asset Management Company Companies,https://www.screener.in/company/ABSLAMC/consolidated/
-ICICI Prudential Asset Management Co Ltd,85.0,Asset Management Company Companies,https://www.screener.in/company/ICICIAMC/consolidated/
-Nippon Life India Asset Management Ltd,84.0,Asset Management Company Companies,https://www.screener.in/company/NAM-INDIA/consolidated/
-HDFC Asset Management Company Ltd,83.0,Asset Management Company Companies,https://www.screener.in/company/HDFCAMC/
-Indian Energy Exchange Ltd,93.0,Capital Markets Companies,https://www.screener.in/company/IEX/
-Systango Technologies Ltd,87.0,Computers - Software & Consulting Companies,https://www.screener.in/company/SYSTANGO/consolidated/
-NINtec Systems Ltd,86.0,Computers - Software & Consulting Companies,https://www.screener.in/company/NINSYS/consolidated/
-Newgen Software Technologies Ltd,86.0,Computers - Software & Consulting Companies,https://www.screener.in/company/NEWGEN/consolidated/
-Identixweb Ltd,85.0,Computers - Software & Consulting Companies,https://www.screener.in/company/544388/consolidated/
-All E Technologies Ltd (ALLETEC),83.0,Computers - Software & Consulting Companies,
-Persistent Systems Ltd,83.0,Computers - Software & Consulting Companies,https://www.screener.in/company/PERSISTENT/consolidated/
-Infosys Ltd,82.0,Computers - Software & Consulting Companies,https://www.screener.in/company/INFY/consolidated/
-KPIT Technologies Ltd,81.0,Computers - Software & Consulting Companies,https://www.screener.in/company/KPITTECH/consolidated/
-TAC Infosec Ltd,81.0,Computers - Software & Consulting Companies,https://www.screener.in/company/TAC/consolidated/
-Hexaware Technologies Ltd,81.0,Computers - Software & Consulting Companies,https://www.screener.in/company/HEXT/consolidated/
-Tata Consultancy Services Ltd (TCS),81.0,Computers - Software & Consulting Companies,
-Saksoft Ltd,80.0,Computers - Software & Consulting Companies,https://www.screener.in/company/SAKSOFT/consolidated/
-Innovana Thinklabs Ltd,80.0,Computers - Software & Consulting Companies,https://www.screener.in/company/INNOVANA/consolidated/
+Anthem Biosciences Ltd,80.0,Biotechnology Companies,https://www.screener.in/company/ANTHEM/consolidated/
 Computer Age Management Services Ltd.,82.0,"Depositories, Clearing Houses and Other Intermediaries Companies",
 Keltech Energies Ltd,74.0,Explosives Companies,https://www.screener.in/company/506528/
 Solar Industries India Ltd,73.0,Explosives Companies,https://www.screener.in/company/SOLARINDS/consolidated/
-Indraprastha Medical Corporation Ltd,86.0,Hospital Companies,https://www.screener.in/company/INDRAMEDCO/
-Kovai Medical Center & Hospital Ltd,86.0,Hospital Companies,https://www.screener.in/company/KOVAI/
-LG Electronics India Ltd,82.0,Household Appliances Companies,https://www.screener.in/company/LGEINDIA/
-Life Insurance Corporation of India (LIC),87.0,Insurance Companies,
-ICICI Lombard General Insurance Company Ltd,81.0,Insurance Companies,https://www.screener.in/company/ICICIGI/
+Prevest Denpro Ltd,72.0,Healthcare Equipment & Supplies Companies,https://www.screener.in/company/543363/
 Cigniti Technologies Ltd,83.0,IT Enabled Services Companies,https://www.screener.in/company/CIGNITITEC/consolidated/
 Sahana Systems Ltd,83.0,IT Enabled Services Companies,https://www.screener.in/company/SAHANA/consolidated/
 Affle 3i Ltd,81.0,IT Enabled Services Companies,https://www.screener.in/company/AFFLE/consolidated/
 Exato Technologies Ltd,80.0,IT Enabled Services Companies,https://www.screener.in/company/544626/
 Sagility Ltd,80.0,IT Enabled Services Companies,https://www.screener.in/company/SAGILITY/consolidated/
-AU Small Finance Bank Ltd,68.0,Other Bank Companies,https://www.screener.in/company/AUBANK/
-Fino Payments Bank Ltd,68.0,Other Bank Companies,https://www.screener.in/company/FINOPB/
-Jana Small Finance Bank Ltd,61.0,Other Bank Companies,https://www.screener.in/company/JSFB/
-Alpex Solar Ltd,92.0,Other Electrical Equipment Companies,https://www.screener.in/company/ALPEXSOLAR/consolidated/
-Waaree Renewable Technologies Ltd,92.0,Other Electrical Equipment Companies,https://www.screener.in/company/WAAREERTL/consolidated/
-Shilchar Technologies Ltd,91.0,Other Electrical Equipment Companies,https://www.screener.in/company/SHILCTECH/
+Tips Music Ltd,85.0,Media & Entertainment Companies,https://www.screener.in/company/TIPSMUSIC/
+AU Small Finance Bank Ltd,65.0,Other Bank Companies,https://www.screener.in/company/AUBANK/
+Suryoday Small Finance Bank Ltd.,65.0,Other Bank Companies,
+Capital Small Finance Bank Ltd,61.0,Other Bank Companies,https://www.screener.in/company/CAPITALSFB/
+Apex Ecotech Ltd,83.0,Other Utilities Companies,https://www.screener.in/company/APEXECO/
 Accent Microcell Ltd,88.0,Pharmaceuticals Companies,https://www.screener.in/company/ACCENTMIC/
 Caplin Point Laboratories Ltd,87.0,Pharmaceuticals Companies,https://www.screener.in/company/CAPLIPOINT/consolidated/
 Lupin Ltd,87.0,Pharmaceuticals Companies,https://www.screener.in/company/LUPIN/consolidated/
@@ -49,8 +26,4 @@ Sanofi Consumer Healthcare India Ltd,81.0,Pharmaceuticals Companies,https://www.
 Gujarat Pipavav Port Ltd,87.0,Port & Port services Companies,https://www.screener.in/company/GPPL/consolidated/
 Adani Ports & Special Economic Zone Ltd,85.0,Port & Port services Companies,https://www.screener.in/company/ADANIPORTS/consolidated/
 JSW Infrastructure Ltd,83.0,Port & Port services Companies,https://www.screener.in/company/JSWINFRA/consolidated/
-Bank of Maharashtra,87.0,Public Sector Bank Companies,https://www.screener.in/company/MAHABANK/consolidated/
-State Bank of India,86.0,Public Sector Bank Companies,https://www.screener.in/company/SBIN/consolidated/
-Indian Bank,84.0,Public Sector Bank Companies,https://www.screener.in/company/INDIANB/consolidated/
-Canara Bank,84.0,Public Sector Bank Companies,https://www.screener.in/company/CANBK/consolidated/
-Apex Ecotech Ltd,82.0,Water Supply & Management Companies,https://www.screener.in/company/APEXECO/
+ICRA LTD,84.0,Ratings Companies,

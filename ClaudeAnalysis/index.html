@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Analysis Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #1e293b, #0f172a); padding: 2rem; border-bottom: 1px solid #334155; }
+  .header h1 { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+  .header p { color: #64748b; margin-top: 0.4rem; font-size: 0.9rem; }
+  .stats { display: flex; gap: 1rem; padding: 1.25rem 2rem; flex-wrap: wrap; border-bottom: 1px solid #1e293b; }
+  .stat { background: #1e293b; border-radius: 8px; padding: 0.75rem 1.25rem; min-width: 120px; }
+  .stat .n { font-size: 1.5rem; font-weight: 800; color: #38bdf8; }
+  .stat .l { font-size: 0.75rem; color: #64748b; margin-top: 0.1rem; }
+  .table-wrap { padding: 1.5rem 2rem; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { background: #1e293b; color: #94a3b8; padding: 0.75rem 1rem; text-align: left; font-weight: 600; border-bottom: 2px solid #334155; white-space: nowrap; }
+  td { padding: 0.75rem 1rem; border-bottom: 1px solid #1e293b; vertical-align: middle; }
+  tr:hover td { background: #1a2234; }
+  .company-link { color: #60a5fa; text-decoration: none; font-weight: 600; }
+  .company-link:hover { text-decoration: underline; }
+  .sector-tag { display: inline-block; background: #1e3a5f; color: #93c5fd; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; }
+  .score-pill { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 6px; font-weight: 700; font-size: 0.85rem; min-width: 3rem; text-align: center; }
+  .score-hi { background: #14532d; color: #86efac; }
+  .score-mid { background: #164e63; color: #67e8f9; }
+  .score-low { background: #450a0a; color: #fca5a5; }
+  .signal-pill { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+  .sig-sb { background: #14532d; color: #86efac; }
+  .sig-mb { background: #164e63; color: #67e8f9; }
+  .sig-ho { background: #78350f; color: #fcd34d; }
+  .sig-av { background: #450a0a; color: #fca5a5; }
+  .sig-mx { background: #1e1b4b; color: #c4b5fd; }
+  .date-col { color: #64748b; font-size: 0.8rem; white-space: nowrap; }
+  .footer { padding: 1.25rem 2rem; color: #475569; font-size: 0.8rem; border-top: 1px solid #1e293b; }
+  .updated { color: #475569; font-size: 0.8rem; padding: 0 2rem 1rem; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Stock Analysis Dashboard</h1>
+  <p>Indian equities scored on financial performance + management credibility</p>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">4</div><div class="l">Companies Tracked</div></div>
+  <div class="stat"><div class="n">2</div><div class="l">Strong Buy</div></div>
+  <div class="stat"><div class="n">2</div><div class="l">Moderate Buy</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">Avoid</div></div>
+</div>
+
+<div class="updated">Last updated: 02 Jul 2026, 12:00</div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Company</th>
+      <th>Sector</th>
+      <th>Financial</th>
+      <th>Concall</th>
+      <th>Combined</th>
+      <th>Signal</th>
+      <th>Analyzed</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="color:#475569;font-weight:700">1</td>
+      <td><a class="company-link" href="Anand_Rathi_Wealth_Limited_20260626_200640.html">Anand Rathi Wealth Limited</a></td>
+      <td><span class="sector-tag">Wealth Management / Capital Markets</span></td>
+      <td><span class="score-pill score-hi">84</span></td>
+      <td><span class="score-pill score-hi">90</span></td>
+      <td><span class="score-pill score-hi">87</span></td>
+      <td><span class="signal-pill sig-sb">Strong Buy</span></td>
+      <td class="date-col">2026-06-26</td>
+    </tr>
+    <tr>
+      <td style="color:#475569;font-weight:700">2</td>
+      <td><a class="company-link" href="CARE_Ratings_Ltd_20260630_235449.html">CARE Ratings Ltd</a></td>
+      <td><span class="sector-tag">Capital Markets / Credit Rating Agency</span></td>
+      <td><span class="score-pill score-hi">77</span></td>
+      <td><span class="score-pill score-hi">86</span></td>
+      <td><span class="score-pill score-hi">82</span></td>
+      <td><span class="signal-pill sig-sb">Strong Buy</span></td>
+      <td class="date-col">2026-06-30</td>
+    </tr>
+    <tr>
+      <td style="color:#475569;font-weight:700">3</td>
+      <td><a class="company-link" href="Waaree_Energies_Ltd_20260702_120000.html">Waaree Energies Ltd</a></td>
+      <td><span class="sector-tag">Solar PV Module &amp; Cell Manufacturing</span></td>
+      <td><span class="score-pill score-hi">78</span></td>
+      <td><span class="score-pill score-hi">70</span></td>
+      <td><span class="score-pill score-hi">75</span></td>
+      <td><span class="signal-pill sig-mb">Moderate Buy</span></td>
+      <td class="date-col">2026-07-02</td>
+    </tr>
+    <tr>
+      <td style="color:#475569;font-weight:700">4</td>
+      <td><a class="company-link" href="ICRA_Ltd_20260627_171630.html">ICRA Ltd</a></td>
+      <td><span class="sector-tag">Capital Markets / Credit Rating Agency</span></td>
+      <td><span class="score-pill score-hi">75</span></td>
+      <td><span class="score-pill score-hi">72</span></td>
+      <td><span class="score-pill score-hi">74</span></td>
+      <td><span class="signal-pill sig-mb">Moderate Buy</span></td>
+      <td class="date-col">2026-06-27</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="footer">
+  Powered by /analyze-stock skill &nbsp;|&nbsp; Claude Sonnet &nbsp;|&nbsp; Data: Screener.in &middot; NSE/BSE filings &middot; Moneycontrol &middot; Trendlyne &middot; ET Markets &middot; Value Research Online &middot; Kotak Securities
+</div>
+</body>
+</html>
